@@ -1,0 +1,3808 @@
+"use strict";
+
+function latepoint_is_timeframe_in_periods(timeframe_start, timeframe_end, periods_arr) {
+  var is_inside = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
+  for (var i = 0; i < periods_arr.length; i++) {
+    var period_start = 0;
+    var period_end = 0;
+    var buffer_before = 0;
+    var buffer_after = 0;
+    var period_info = periods_arr[i].split(':');
+    if (period_info.length == 2) {
+      period_start = period_info[0];
+      period_end = period_info[1];
+    } else {
+      buffer_before = period_info[2];
+      buffer_after = period_info[3];
+      period_start = parseFloat(period_info[0]) - parseFloat(buffer_before);
+      period_end = parseFloat(period_info[1]) + parseFloat(buffer_after);
+    }
+    if (is_inside) {
+      if (latepoint_is_period_inside_another(timeframe_start, timeframe_end, period_start, period_end)) {
+        return true;
+      }
+    } else {
+      if (latepoint_is_period_overlapping(timeframe_start, timeframe_end, period_start, period_end)) {
+        return true;
+      }
+    }
+  }
+  ;
+  return false;
+}
+function latepoint_is_period_overlapping(period_one_start, period_one_end, period_two_start, period_two_end) {
+  // https://stackoverflow.com/questions/325933/determine-whether-two-date-ranges-overlap/
+  return period_one_start < period_two_end && period_two_start < period_one_end;
+}
+function latepoint_is_period_inside_another(period_one_start, period_one_end, period_two_start, period_two_end) {
+  return period_one_start >= period_two_start && period_one_end <= period_two_end;
+}
+
+// Converts time in minutes to hours if possible, if minutes also exists - shows minutes too
+function latepoint_minutes_to_hours_preferably(time) {
+  var army_clock = latepoint_is_army_clock();
+  var hours = Math.floor(time / 60);
+  if (!army_clock && hours > 12) hours = hours - 12;
+  var minutes = time % 60;
+  if (minutes > 0) hours = hours + ':' + minutes;
+  return hours;
+}
+function latepoint_minutes_to_hours(time) {
+  var army_clock = latepoint_is_army_clock();
+  var hours = Math.floor(time / 60);
+  if (!army_clock && hours > 12) hours = hours - 12;
+  return hours;
+}
+function latepoint_am_or_pm(minutes) {
+  if (latepoint_is_army_clock()) return '';
+  return minutes < 720 || minutes == 1440 ? 'am' : 'pm';
+}
+function latepoint_hours_and_minutes_to_minutes(hours_and_minutes, ampm) {
+  var hours_and_minutes_arr = hours_and_minutes.split(':');
+  var hours = hours_and_minutes_arr[0];
+  var minutes = hours_and_minutes_arr[1];
+  if (ampm == "pm" && hours < 12) hours = parseInt(hours) + 12;
+  if (ampm == "am" && hours == 12) hours = 0;
+  minutes = parseInt(minutes) + hours * 60;
+  return minutes;
+}
+function latepoint_get_time_system() {
+  return latepoint_helper.time_system;
+}
+function latepoint_is_army_clock() {
+  return latepoint_get_time_system() == '24';
+}
+function latepoint_minutes_to_hours_and_minutes(minutes) {
+  var army_clock = latepoint_is_army_clock();
+  var format = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '%02d:%02d';
+  var hours = Math.floor(minutes / 60);
+  if (!army_clock && hours > 12) hours = hours - 12;
+  if (!army_clock && hours == 0) hours = 12;
+  var minutes = minutes % 60;
+  return sprintf(format, hours, minutes);
+}
+"use strict";
+
+(function ($) {
+  jQuery.fn.lateSelect = function () {
+    function os_build_selected_item($option) {
+      var quantity_html = '';
+      if ($option.data('quantity')) quantity_html = '<span class="os-late-quantity-selector-w"><span class="os-late-quantity-selector minus" data-sign="minus"></span><input class="os-late-quantity-selector-input" type="text" data-max-quantity="' + $option.data('max-quantity') + '" value="' + $option.data('quantity') + '"/><span class="os-late-quantity-selector plus" data-sign="plus"></span></span>';
+      return '<div class="ls-item" data-value="' + $option.val() + '"><span class="latepoint-icon latepoint-icon-cross ls-item-remover"></span><span>' + $option.text() + '</span>' + quantity_html + '</div>';
+    }
+    this.each(function () {
+      var lateselect_html = '';
+      var all_items = '';
+      var selected_items = '';
+      var is_selected = '';
+      if (jQuery(this).hasClass('os-late-select-active')) return;
+      jQuery(this).hide().addClass('os-late-select-active');
+      jQuery(this).find('option').each(function () {
+        if (jQuery(this).is(':selected')) selected_items += os_build_selected_item(jQuery(this));
+        is_selected = jQuery(this).is(':selected') ? 'selected' : '';
+        all_items += '<div class="ls-item ' + is_selected + '" data-value="' + jQuery(this).val() + '">' + jQuery(this).text() + '</div>';
+      });
+      var placeholder = '<div class="ls-placeholder">' + jQuery(this).data('placeholder') + '</div>';
+      lateselect_html = jQuery('<div class="lateselect-w"></div>');
+      jQuery(this).wrap(lateselect_html);
+      var $lateselect_wrapper = jQuery(this).closest('.lateselect-w');
+      $lateselect_wrapper.append('<div class="ls-selected-items-w">' + placeholder + selected_items + '</div>');
+      $lateselect_wrapper.append('<div class="ls-all-items-w">' + all_items + '</div>');
+
+      // ADD ITEM
+      $lateselect_wrapper.on('click', '.ls-all-items-w .ls-item:not(.selected)', function () {
+        var selected_value = jQuery(this).data('value');
+        $lateselect_wrapper.find('.ls-selected-items-w').append(os_build_selected_item($lateselect_wrapper.find('select option[value="' + selected_value + '"]')));
+        jQuery(this).addClass('selected');
+        $lateselect_wrapper.removeClass('ls-selecting');
+        $lateselect_wrapper.find('select option[value="' + selected_value + '"]').prop('selected', true);
+        $lateselect_wrapper.find('select').trigger('change');
+        return false;
+      });
+
+      // REMOVE ITEM
+      $lateselect_wrapper.on('click', '.ls-selected-items-w .ls-item-remover', function () {
+        var selected_value = jQuery(this).closest('.ls-item').data('value');
+        jQuery(this).closest('.ls-item').remove();
+        $lateselect_wrapper.find('.ls-all-items-w .ls-item.selected[data-value="' + selected_value + '"]').removeClass('selected');
+        $lateselect_wrapper.find('select option[value="' + selected_value + '"]').prop('selected', false);
+        $lateselect_wrapper.find('select').trigger('change');
+        return false;
+      });
+      $lateselect_wrapper.on('click', '.ls-selected-items-w', function () {
+        $lateselect_wrapper.toggleClass('ls-selecting');
+        return false;
+      });
+      $lateselect_wrapper.on('click', '.os-late-quantity-selector', function () {
+        var $input = jQuery(this).closest('.ls-item').find('input.os-late-quantity-selector-input');
+        var current_value = parseInt($input.val());
+        var new_quantity = jQuery(this).data('sign') == 'minus' ? current_value - 1 : current_value + 1;
+        var max_quantity = $input.data('max-quantity');
+        if (new_quantity <= 0) new_quantity = 1;
+        if (max_quantity && new_quantity > max_quantity) new_quantity = max_quantity;
+        var selected_value = jQuery(this).closest('.ls-item').data('value');
+        $lateselect_wrapper.find('select option[value="' + selected_value + '"]').data('quantity', new_quantity);
+        $input.val(new_quantity);
+        $lateselect_wrapper.find('select').trigger('change');
+        return false;
+      });
+      jQuery(this).on('change', function () {
+        var $hidden_connection = false;
+        if (jQuery(this).data('hidden-connection')) {
+          $hidden_connection = jQuery(jQuery(this).data('hidden-connection'));
+        } else {
+          $hidden_connection = jQuery(this).closest('.lateselect-w').next('input[type="hidden"]');
+        }
+        var formatted_ids = '';
+        if (jQuery(this).find('option:selected').length) {
+          jQuery(this).find('option:selected').each(function () {
+            if (jQuery(this).data('quantity')) {
+              var quantity = jQuery(this).data('quantity') ? jQuery(this).data('quantity') : 1;
+              formatted_ids += jQuery(this).val() + ':' + quantity + ',';
+            } else {
+              formatted_ids += jQuery(this).val() + ',';
+            }
+          });
+        } else {
+          formatted_ids = '';
+        }
+        if (formatted_ids != '') formatted_ids = formatted_ids.slice(0, -1);
+        $hidden_connection.val(formatted_ids);
+      });
+    });
+  };
+})(jQuery);
+"use strict";
+
+/*
+ * Copyright (c) 2023 LatePoint LLC. All rights reserved.
+ */
+
+(function ($) {
+  jQuery.fn.lateCheckbox = function () {
+    function applyChanges(id) {
+      var $wrapper = jQuery('.latecheckbox-w[data-latecheckbox-id="' + id + '"]');
+      $wrapper.find('.latecheckbox-options-w').html(jQuery('.latecheckbox-options-w[data-latecheckbox-id="' + id + '"]').html());
+      var $options = $wrapper.find('.latecheckbox-options');
+      var total_checked = $options.find('.latecheckbox-option input[type="checkbox"]:checked').length;
+      var total_available = $options.find('.latecheckbox-option input[type="checkbox"]').length;
+      if (total_checked < total_available) {
+        $wrapper.find('.latecheckbox .filter-value').text(total_checked);
+      } else {
+        $wrapper.find('.latecheckbox .filter-value').text('All');
+      }
+      // set indeterminate, since it can only be set via JS
+      $wrapper.find('input[type="checkbox"][indeterminate="indeterminate"]').prop('indeterminate', true).removeAttr('indeterminate');
+      $wrapper.find('.latecheckbox').trigger('change');
+    }
+    this.each(function () {
+      var $latecheckbox_wrapper = jQuery(this).closest('.latecheckbox-w');
+      $latecheckbox_wrapper.attr('data-latecheckbox-id', 'latecheckbox-' + latepoint_random_generator());
+      $latecheckbox_wrapper.on('click', '.latecheckbox', function () {
+        var $latecheckbox = jQuery(this);
+        jQuery('body > .latecheckbox-options-w').remove();
+        if (jQuery(this).hasClass('is-active')) {
+          jQuery(this).removeClass('is-active');
+        } else {
+          jQuery('.latecheckbox.is-active').removeClass('is-active');
+          jQuery(this).addClass('is-active');
+          var position = jQuery(this).position();
+          var left = position.left;
+          var $options_wrapper = $latecheckbox_wrapper.find('.latecheckbox-options-w');
+          var $options_wrapper_clone = $options_wrapper.clone();
+          $options_wrapper_clone.attr('data-latecheckbox-id', jQuery(this).closest('.latecheckbox-w').attr('data-latecheckbox-id')).appendTo('body');
+          if (true) {
+            // todo add ability to change position
+            left = left + jQuery(this).outerWidth() - $options_wrapper_clone.outerWidth();
+          }
+          $options_wrapper_clone.css({
+            "top": position.top + jQuery(this).outerHeight() + 5,
+            "left": left
+          });
+          if ($options_wrapper_clone.find('.latecheckbox-filter-input').length) $options_wrapper_clone.find('.latecheckbox-filter-input').trigger('focus');
+          $options_wrapper_clone.on('change', '.latecheckbox-all-check', function () {
+            if (jQuery(this).is(':checked')) {
+              jQuery(this).attr('checked', 'checked').removeAttr('indeterminate');
+              jQuery(this).closest('.latecheckbox-options-w').find('.latecheckbox-options input[type="checkbox"]').prop('checked', true).prop('indeterminate', false).attr('checked', 'checked');
+            } else {
+              jQuery(this).removeAttr('checked').removeAttr('indeterminate');
+              jQuery(this).closest('.latecheckbox-options-w').find('.latecheckbox-options input[type="checkbox"]').prop('checked', false).prop('indeterminate', false).removeAttr('checked');
+            }
+            applyChanges(jQuery(this).closest('.latecheckbox-options-w').attr('data-latecheckbox-id'));
+          });
+          $options_wrapper_clone.on('change', '.latecheckbox-group-check', function () {
+            if (jQuery(this).is(':checked')) {
+              jQuery(this).attr('checked', 'checked').removeAttr('indeterminate');
+              jQuery(this).closest('.latecheckbox-group').find('.latecheckbox-group-options input[type="checkbox"]').prop('checked', true).attr('checked', 'checked');
+            } else {
+              jQuery(this).removeAttr('checked').removeAttr('indeterminate');
+              jQuery(this).closest('.latecheckbox-group').find('.latecheckbox-group-options input[type="checkbox"]').prop('checked', false).removeAttr('checked');
+            }
+            applyChanges(jQuery(this).closest('.latecheckbox-options-w').attr('data-latecheckbox-id'));
+          });
+          $options_wrapper_clone.on('keyup', '.latecheckbox-filter-input', function () {
+            var q = jQuery(this).val().toLowerCase();
+            if (q == '') {
+              jQuery(this).closest('.latecheckbox-options-w').find('.latecheckbox-option.hidden').removeClass('hidden');
+            } else {
+              jQuery(this).closest('.latecheckbox-options-w').find('.latecheckbox-option').each(function () {
+                var text = jQuery(this).text().toLowerCase();
+                text.indexOf(q) >= 0 ? jQuery(this).removeClass('hidden') : jQuery(this).addClass('hidden');
+              });
+            }
+          });
+          $options_wrapper_clone.on('change', '.latecheckbox-option input[type="checkbox"]', function () {
+            if (jQuery(this).is(':checked')) {
+              jQuery(this).attr('checked', 'checked');
+            } else {
+              jQuery(this).removeAttr('checked');
+            }
+
+            // group checkbox
+            if (jQuery(this).closest('.latecheckbox-group-options').length) {
+              var $group = jQuery(this).closest('.latecheckbox-group');
+              var _checked_count = $group.find('.latecheckbox-option input:checked').length;
+              var _unchecked_count = $group.find('.latecheckbox-option input:not(:checked)').length;
+              if (_checked_count && _unchecked_count) {
+                $group.find('.latecheckbox-group-check').prop('indeterminate', true).attr('indeterminate', 'indeterminate');
+                $group.find('.latecheckbox-group-check').prop('checked', false).removeAttr('checked');
+              } else {
+                $group.find('.latecheckbox-group-check').prop('indeterminate', false).removeAttr('indeterminate');
+                if (!_checked_count) {
+                  $group.find('.latecheckbox-group-check').prop('checked', false).removeAttr('checked');
+                }
+                if (!_unchecked_count) {
+                  $group.find('.latecheckbox-group-check').prop('checked', true).attr('checked', 'checked');
+                }
+              }
+            }
+            var checked_count = $options_wrapper_clone.find('.latecheckbox-option input:checked').length;
+            var unchecked_count = $options_wrapper_clone.find('.latecheckbox-option input:not(:checked)').length;
+            if (checked_count && unchecked_count) {
+              $options_wrapper_clone.find('.latecheckbox-all-check').prop('indeterminate', true).attr('indeterminate', 'indeterminate');
+              $options_wrapper_clone.find('.latecheckbox-all-check').prop('checked', false).removeAttr('checked');
+            } else {
+              $options_wrapper_clone.find('.latecheckbox-all-check').prop('indeterminate', false).removeAttr('indeterminate');
+              if (!checked_count) {
+                $options_wrapper_clone.find('.latecheckbox-all-check').prop('checked', false).removeAttr('checked');
+              }
+              if (!unchecked_count) {
+                $options_wrapper_clone.find('.latecheckbox-all-check').prop('checked', true).attr('checked', 'checked');
+              }
+            }
+            applyChanges(jQuery(this).closest('.latecheckbox-options-w').attr('data-latecheckbox-id'));
+          });
+        }
+        return false;
+      });
+    });
+  };
+})(jQuery);
+"use strict";
+
+function latepoint_generate_form_message_html(messages, status) {
+  var message_html = '<div class="os-form-message-w status-' + status + '"><ul>';
+  if (Array.isArray(messages)) {
+    messages.forEach(function (message) {
+      message_html += '<li>' + message + '</li>';
+    });
+  } else {
+    message_html += '<li>' + messages + '</li>';
+  }
+  message_html += '</ul></div>';
+  return message_html;
+}
+function latepoint_clear_form_messages($form) {
+  $form.find('.os-form-message-w').remove();
+}
+function latepoint_show_data_in_lightbox(message) {
+  var extra_classes = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+  jQuery('.latepoint-lightbox-w').remove();
+  var lightbox_css_classes = 'latepoint-lightbox-w latepoint-w ';
+  if (extra_classes) lightbox_css_classes += extra_classes;
+  jQuery('body').append('<div class="' + lightbox_css_classes + '"><div class="latepoint-lightbox-i">' + message + '<a href="#" class="latepoint-lightbox-close"><i class="latepoint-icon latepoint-icon-x"></i></a></div><div class="latepoint-lightbox-shadow"></div></div>');
+  jQuery('body').addClass('latepoint-lightbox-active');
+}
+
+// DOCUMENT READY
+jQuery(function ($) {
+  if ($('.latepoint').find('[data-os-action-onload]').length) {
+    $('.latepoint').find('[data-os-action-onload]').each(function () {
+      var $this = jQuery(this);
+      $this.addClass('os-loading');
+      var params = $this.data('os-params');
+      var return_format = $this.data('os-return-format') ? $this.data('os-return-format') : 'json';
+      var data = {
+        action: 'latepoint_route_call',
+        route_name: $this.data('os-action-onload'),
+        params: params,
+        return_format: return_format
+      };
+      jQuery.ajax({
+        type: "post",
+        dataType: "json",
+        url: latepoint_helper.ajaxurl,
+        data: data,
+        success: function success(response) {
+          $this.removeClass('os-loading');
+          if (response.status === "success") {
+            if ($this.data('os-output-target') == 'self') {
+              $this.html(response.message);
+            }
+          }
+        }
+      });
+    });
+  }
+  /* 
+    Ajax buttons action
+  */
+  $('.latepoint').on('click', 'button[data-os-action], a[data-os-action], div[data-os-action], span[data-os-action], tr[data-os-action]', function (e) {
+    var $this = jQuery(this);
+    if ($this.data('os-prompt') && !confirm($this.data('os-prompt'))) return false;
+    var params = $this.data('os-params');
+    if ($this.data('os-source-of-params')) {
+      var form_data = latepoint_create_form_data_from_non_form_element($($this.data('os-source-of-params')));
+      params = latepoint_formdata_to_url_encoded_string(form_data);
+    }
+    var return_format = $this.data('os-return-format') ? $this.data('os-return-format') : 'json';
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: $this.data('os-action'),
+      params: params,
+      return_format: return_format
+    };
+    $this.addClass('os-loading');
+    if ($this.data('os-output-target') == 'side-panel') {
+      $('.latepoint-side-panel-w').remove();
+      $('body').append('<div class="latepoint-side-panel-w os-loading"><div class="latepoint-side-panel-i"></div><div class="latepoint-side-panel-shadow"></div></div>');
+    }
+    $.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        if (response.status === "success") {
+          if ($this.data('os-output-target') == 'lightbox') {
+            latepoint_show_data_in_lightbox(response.message, $this.data('os-lightbox-classes'));
+          } else if ($this.data('os-output-target') == 'side-panel') {
+            $('.latepoint-side-panel-i').html(response.message);
+            setTimeout(function () {
+              $('.latepoint-side-panel-w').removeClass('os-loading');
+            }, 100);
+          } else if ($this.data('os-success-action') == 'reload') {
+            latepoint_add_notification(response.message);
+            location.reload();
+            return;
+          } else if ($this.data('os-success-action') == 'redirect') {
+            if ($this.data('os-redirect-to')) {
+              latepoint_add_notification(response.message);
+              window.location.replace($this.data('os-redirect-to'));
+            } else {
+              window.location.replace(response.message);
+            }
+            return;
+          } else if ($this.data('os-output-target') && $($this.data('os-output-target')).length) {
+            if ($this.data('os-output-target-do') == 'append') {
+              $($this.data('os-output-target')).append(response.message);
+            } else {
+              $($this.data('os-output-target')).html(response.message);
+            }
+          } else {
+            switch ($this.data('os-before-after')) {
+              case 'before':
+                $this.before(response.message);
+                break;
+              case 'after':
+                $this.after(response.message);
+                break;
+              case 'replace':
+                $this.replaceWith(response.message);
+                break;
+              case 'none':
+                break;
+              default:
+                latepoint_add_notification(response.message);
+            }
+          }
+          if ($this.data('os-after-call')) {
+            var func_name = $this.data('os-after-call');
+            var callback = false;
+            if (func_name.includes('.')) {
+              var func_arr = func_name.split('.');
+              if (typeof window[func_arr[0]][func_arr[1]] !== 'function') {
+                console.log(func_name + ' is undefined');
+              }
+              if ($this.data('os-pass-this') && $this.data('os-pass-response')) {
+                window[func_arr[0]][func_arr[1]]($this, response);
+              } else if ($this.data('os-pass-this')) {
+                window[func_arr[0]][func_arr[1]]($this);
+              } else if ($this.data('os-pass-response')) {
+                window[func_arr[0]][func_arr[1]](response);
+              } else {
+                window[func_arr[0]][func_arr[1]]();
+              }
+            } else {
+              if (typeof window[func_name] !== 'function') {
+                console.log(func_name + ' is undefined');
+              }
+              if ($this.data('os-pass-this') && $this.data('os-pass-response')) {
+                window[func_name]($this, response);
+              } else if ($this.data('os-pass-this')) {
+                window[func_name]($this);
+              } else if ($this.data('os-pass-response')) {
+                window[func_name](response);
+              } else {
+                window[func_name]();
+              }
+            }
+          }
+          $this.removeClass('os-loading');
+        } else {
+          $this.removeClass('os-loading');
+          if ($this.data('os-output-target') && $($this.data('os-output-target')).length) {
+            $($this.data('os-output-target')).prepend(latepoint_generate_form_message_html(response.message, 'error'));
+          } else {
+            alert(response.message);
+          }
+          if ($this.data('os-after-call-error')) {
+            var func_name = $this.data('os-after-call-error');
+            var callback = false;
+            if (func_name.includes('.')) {
+              var func_arr = func_name.split('.');
+              if (typeof window[func_arr[0]][func_arr[1]] !== 'function') {
+                console.log(func_name + ' is undefined');
+              }
+              if ($this.data('os-pass-this') && $this.data('os-pass-response')) {
+                window[func_arr[0]][func_arr[1]]($this, response);
+              } else if ($this.data('os-pass-this')) {
+                window[func_arr[0]][func_arr[1]]($this);
+              } else if ($this.data('os-pass-response')) {
+                window[func_arr[0]][func_arr[1]](response);
+              } else {
+                window[func_arr[0]][func_arr[1]]();
+              }
+            } else {
+              if (typeof window[func_name] !== 'function') {
+                console.log(func_name + ' is undefined');
+              }
+              if ($this.data('os-pass-this') && $this.data('os-pass-response')) {
+                window[func_name]($this, response);
+              } else if ($this.data('os-pass-this')) {
+                window[func_name]($this);
+              } else if ($this.data('os-pass-response')) {
+                window[func_name](response);
+              } else {
+                window[func_name]();
+              }
+            }
+          }
+        }
+      }
+    });
+    return false;
+  });
+  $('.latepoint').on('click', 'form[data-os-action] button[type="submit"]', function (e) {
+    $(this).addClass('os-loading');
+  });
+
+  /* 
+    Form ajax submit action
+  */
+  $('.latepoint').on('submit', 'form[data-os-action]', function (e) {
+    e.preventDefault(); // prevent native submit
+    var $form = $(this);
+    var form_data = new FormData($form[0]);
+    if ('intlTelInputGlobals' in window && 'intlTelInputUtils' in window) {
+      // Get e164 formatted number from phone fields when form is submitted
+      $form.find('input.os-mask-phone').each(function () {
+        var telInstance = window.intlTelInputGlobals.getInstance(this);
+        if (telInstance) {
+          var phoneInputName = this.getAttribute('name');
+          var phoneInputValue = window.intlTelInputGlobals.getInstance(this).getNumber(window.intlTelInputUtils.numberFormat.E164);
+          form_data.set(phoneInputName, phoneInputValue);
+        }
+      });
+    }
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: $(this).data('os-action'),
+      params: latepoint_formdata_to_url_encoded_string(form_data),
+      return_format: 'json'
+    };
+    $form.find('button[type="submit"]').addClass('os-loading');
+    $.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $form.find('button[type="submit"].os-loading').removeClass('os-loading');
+        latepoint_clear_form_messages($form);
+        if (response.status === "success") {
+          if ($form.data('os-success-action') == 'reload') {
+            latepoint_add_notification(response.message);
+            location.reload();
+            return;
+          } else if ($form.data('os-success-action') == 'redirect') {
+            if ($form.data('os-redirect-to')) {
+              latepoint_add_notification(response.message);
+              window.location.replace($form.data('os-redirect-to'));
+            } else {
+              window.location.replace(response.message);
+            }
+            return;
+          } else if ($form.data('os-output-target') && $($form.data('os-output-target')).length) {
+            $($form.data('os-output-target')).html(response.message);
+          } else {
+            if (response.message == 'redirect') {
+              window.location.replace(response.url);
+            } else {
+              latepoint_add_notification(response.message);
+              $form.prepend(latepoint_generate_form_message_html(response.message, 'success'));
+            }
+          }
+          if ($form.data('os-record-id-holder') && response.record_id) {
+            $form.find('[name="' + $form.data('os-record-id-holder') + '"]').val(response.record_id);
+          }
+          if ($form.data('os-after-call')) {
+            var func_name = $form.data('os-after-call');
+            if (typeof window[func_name] !== 'function') {
+              console.log(func_name + ' is undefined');
+            }
+            if ($form.data('os-pass-response')) {
+              window[func_name](response);
+            } else {
+              window[func_name]();
+            }
+          }
+          $('button.os-loading').removeClass('os-loading');
+        } else {
+          $('button.os-loading').removeClass('os-loading');
+          if ($form.data('os-show-errors-as-notification')) {
+            latepoint_add_notification(response.message, 'error');
+          } else {
+            $form.prepend(latepoint_generate_form_message_html(response.message, 'error'));
+            $([document.documentElement, document.body]).animate({
+              scrollTop: $form.find(".os-form-message-w").offset().top - 30
+            }, 200);
+          }
+        }
+        if (response.form_values_to_update) {
+          $.each(response.form_values_to_update, function (name, value) {
+            $form.find('[name="' + name + '"]').val(value);
+          });
+        }
+      }
+    });
+    return false;
+  });
+});
+"use strict";
+
+function latepoint_add_notification(message) {
+  var message_type = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'success';
+  var wrapper = jQuery('body').find('.os-notifications');
+  if (!wrapper.length) {
+    jQuery('body').append('<div class="os-notifications"></div>');
+    wrapper = jQuery('body').find('.os-notifications');
+  }
+  if (wrapper.find('.item').length > 0) wrapper.find('.item:first-child').remove();
+  wrapper.append('<div class="item item-type-' + message_type + '">' + message + '<span class="os-notification-close"><i class="latepoint-icon latepoint-icon-x"></i></span></div>');
+}
+"use strict";
+
+function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest(); }
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _iterableToArrayLimit(arr, i) { var _i = null == arr ? null : "undefined" != typeof Symbol && arr[Symbol.iterator] || arr["@@iterator"]; if (null != _i) { var _s, _e, _x, _r, _arr = [], _n = !0, _d = !1; try { if (_x = (_i = _i.call(arr)).next, 0 === i) { if (Object(_i) !== _i) return; _n = !1; } else for (; !(_n = (_s = _x.call(_i)).done) && (_arr.push(_s.value), _arr.length !== i); _n = !0); } catch (err) { _d = !0, _e = err; } finally { try { if (!_n && null != _i.return && (_r = _i.return(), Object(_r) !== _r)) return; } finally { if (_d) throw _e; } } return _arr; } }
+function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+function _createForOfIteratorHelper(o, allowArrayLike) { var it = typeof Symbol !== "undefined" && o[Symbol.iterator] || o["@@iterator"]; if (!it) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e2) { throw _e2; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = it.call(o); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e3) { didErr = true; err = _e3; }, f: function f() { try { if (!normalCompletion && it.return != null) it.return(); } finally { if (didErr) throw err; } } }; }
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
+function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i]; return arr2; }
+function latepoint_random_generator() {
+  var S4 = function S4() {
+    return ((1 + Math.random()) * 0x10000 | 0).toString(16).substring(1);
+  };
+  return S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4();
+}
+function latepoint_validate_form($form) {
+  var errors = [];
+  $form.find('select[data-os-validate], input[data-os-validate], textarea[data-os-validate]').each(function () {
+    var validations = jQuery(this).data('os-validate').split(' ');
+    var $input = jQuery(this);
+    var label = $input.closest('.os-form-group').find('label').text();
+    var field_has_errors = false;
+    if (validations) {
+      for (var i = 0; i < validations.length; i++) {
+        switch (validations[i]) {
+          case 'presence':
+            if (!$input.val()) {
+              errors.push({
+                message: label + ' ' + latepoint_helper.msg_validation_presence
+              });
+              field_has_errors = true;
+            }
+            break;
+          case 'phone':
+            if (!window.intlTelInputGlobals.getInstance($input[0]).isValidNumber()) {
+              errors.push({
+                message: label + ' ' + latepoint_helper.msg_validation_invalid
+              });
+              field_has_errors = true;
+            }
+            break;
+        }
+      }
+    }
+    if (field_has_errors) {
+      $input.closest('.os-form-group').addClass('os-invalid');
+    } else {
+      $input.closest('.os-form-group').removeClass('os-invalid');
+    }
+  });
+  return errors;
+}
+function latepoint_create_form_data_from_non_form_element($elem) {
+  var formData = new FormData();
+  // create objecte from all input fields that are inside of the element
+  var fields = $elem.find('select, input, textarea').serializeArray();
+  if (fields) {
+    fields.forEach(function (field) {
+      return formData.append(field.name, field.value);
+    });
+  }
+  return formData;
+}
+function latepoint_create_form_data_from_booking_form($booking_form) {
+  var route_name = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+  var extra_params = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+  var form_data = new FormData();
+  var params = new FormData($booking_form[0]);
+  if (extra_params) {
+    Object.keys(extra_params).forEach(function (key) {
+      params.set(key, extra_params[key]);
+    });
+  }
+
+  // get values from phone number fields
+  if ('intlTelInputGlobals' in window && 'intlTelInputUtils' in window) {
+    $booking_form.find('input.os-mask-phone').each(function () {
+      var phoneInputName = this.getAttribute('name');
+      var phoneInputValue = window.intlTelInputGlobals.getInstance(this).getNumber(window.intlTelInputUtils.numberFormat.E164);
+      // override value generated automatically by formdata with a formatted value of a phone field with country code
+      params.set(phoneInputName, phoneInputValue);
+    });
+  }
+  params.set('_wpnonce', $booking_form.find('#_wpnonce').val());
+  form_data.append('params', latepoint_formdata_to_url_encoded_string(params));
+  form_data.append('action', latepoint_helper.route_action);
+  form_data.append('route_name', route_name ? route_name : $booking_form.data('route-name'));
+  form_data.append('layout', 'none');
+  form_data.append('return_format', 'json');
+  var file_data;
+  // put file data into main form_data object, since we can't send them in "params" string
+  $booking_form.find('input[type="file"]').each(function () {
+    file_data = this.files; // get multiple files from input file
+    var file_name = this.getAttribute("name");
+    for (var i = 0; i < file_data.length; i++) {
+      form_data.append(file_name + '[]', file_data[i]);
+    }
+  });
+  return form_data;
+}
+function latepoint_mask_timefield($elem) {
+  if (jQuery().inputmask) {
+    $elem.inputmask({
+      'mask': '99:99',
+      'placeholder': 'HH:MM'
+    });
+  }
+}
+function latepoint_formdata_to_url_encoded_string(form_data) {
+  var filtered_form_data = new FormData();
+  // remove file fields from params, so we can serialize it into string,
+  // !important, this will not include file fields into the form_data, so you have to include them manually, see latepoint_create_form_data_from_booking_form() that does it
+  // note: we don't use form_data.remove(key) on original object because we might want to preserve it
+  var _iterator = _createForOfIteratorHelper(form_data),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var _step$value = _slicedToArray(_step.value, 2),
+        key = _step$value[0],
+        value = _step$value[1];
+      if (value instanceof File) continue;
+      if (key.slice(-2) === '[]') {
+        // expecting array, append
+        filtered_form_data.append(key, value);
+      } else {
+        filtered_form_data.set(key, value);
+      }
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return new URLSearchParams(filtered_form_data).toString();
+}
+function latepoint_mask_percent($elem) {
+  if (jQuery().inputmask) {
+    $elem.inputmask({
+      'alias': 'decimal',
+      'radixPoint': latepoint_helper.decimal_separator,
+      'digits': 4,
+      'digitsOptional': false,
+      'suffix': '%',
+      'placeholder': '0',
+      'rightAlign': false
+    });
+  }
+}
+function latepoint_mask_minutes($elem) {
+  if (jQuery().inputmask) {
+    $elem.inputmask({
+      'removeMaskOnSubmit': true,
+      'alias': 'numeric',
+      'digits': 0,
+      'suffix': latepoint_helper.msg_minutes_suffix,
+      'placeholder': '0',
+      'rightAlign': false
+    });
+  }
+}
+function latepoint_mask_money($elem) {
+  if (jQuery().inputmask) {
+    $elem.inputmask({
+      'alias': 'currency',
+      'groupSeparator': latepoint_helper.thousand_separator,
+      'radixPoint': latepoint_helper.decimal_separator,
+      'digits': latepoint_helper.number_of_decimals,
+      'digitsOptional': false,
+      'prefix': latepoint_helper.currency_symbol_before ? latepoint_helper.currency_symbol_before + ' ' : '',
+      'suffix': latepoint_helper.currency_symbol_after ? ' ' + latepoint_helper.currency_symbol_after : '',
+      'placeholder': '0',
+      'rightAlign': false
+    });
+  }
+}
+function latepoint_mask_date($elem) {
+  if (jQuery().inputmask) {
+    $elem.inputmask({
+      'alias': 'datetime',
+      'inputFormat': latepoint_helper.date_format_for_js
+    });
+  }
+}
+function latepoint_init_phone_masking_from_placeholder($input) {
+  if (!latepoint_helper.mask_phone_number_fields) return;
+  var format = $input.attr('placeholder');
+  if (format && jQuery().inputmask) {
+    $input.inputmask(format.replace(/[0-9]/g, 9));
+  }
+}
+function latepoint_mask_phone($elem) {
+  var jsElem = $elem[0];
+
+  // First priority is to prevent duplicates (common in non-document.body contexts)
+  if (jsElem && !window.intlTelInputGlobals.getInstance(jsElem)) {
+    var dropdownContainer = document.body;
+    var onlyCountries = JSON.parse(latepoint_helper.included_phone_countries);
+    // Remedy a quirk with json_encode(EMPTY_ARRAY)
+    if (onlyCountries.length === 1 && onlyCountries[0] === "") {
+      onlyCountries = [];
+    }
+    var preferredCountries = onlyCountries.length ? [] : window.intlTelInputGlobals.defaults.preferredCountries;
+
+    // remove country name in english and only use names in country language
+    var countryData = window.intlTelInputGlobals.getCountryData();
+    for (var i = 0; i < countryData.length; i++) {
+      var country = countryData[i];
+      country.name = country.name.replace(/ *\([^)]*\) */g, "");
+    }
+    var defaultCountryCode = latepoint_helper.default_phone_country;
+    if (onlyCountries.length && !onlyCountries.includes(defaultCountryCode)) {
+      defaultCountryCode = onlyCountries[0];
+    }
+    var iti = window.intlTelInput(jsElem, {
+      dropdownContainer: dropdownContainer,
+      formatOnDisplay: true,
+      nationalMode: true,
+      autoPlaceholder: 'aggressive',
+      initialCountry: defaultCountryCode,
+      geoIpLookup: function geoIpLookup(callback) {
+        var cookieName = 'latepoint_phone_country';
+        if (latepoint_has_cookie(cookieName)) {
+          callback(latepoint_get_cookie(cookieName));
+        } else {
+          jQuery.get('https://ipinfo.io', function () {}, 'jsonp').always(function (response) {
+            // Sensible default
+            var countryCode = defaultCountryCode;
+            if (response && response.country) {
+              countryCode = response.country.toLowerCase();
+              latepoint_set_cookie(cookieName, countryCode);
+            }
+            callback(countryCode);
+          });
+        }
+      },
+      allowDropdown: onlyCountries.length != 1,
+      onlyCountries: onlyCountries,
+      preferredCountries: preferredCountries,
+      separateDialCode: latepoint_helper.is_enabled_show_dial_code_with_flag
+    });
+    iti.promise.then(function () {
+      latepoint_init_phone_masking_from_placeholder($elem);
+    });
+    $elem.on("countrychange", function (event) {
+      latepoint_init_phone_masking_from_placeholder(jQuery(this));
+    });
+  }
+}
+function latepoint_show_booking_end_time() {
+  return latepoint_helper.show_booking_end_time == 'yes';
+}
+function latepoint_set_cookie(name, value, days) {
+  var date = new Date();
+  date.setTime(date.getTime() + 24 * 60 * 60 * 1000 * days);
+  document.cookie = name + "=" + value + ";path=/;expires=" + date.toGMTString();
+}
+function latepoint_get_cookie(name) {
+  var cookie = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return cookie ? cookie[2] : null;
+}
+function latepoint_has_cookie(name) {
+  return latepoint_get_cookie(name) !== null;
+}
+function latepoint_delete_cookie(name) {
+  latepoint_set_cookie(name, '', -1);
+}
+"use strict";
+
+function latepoint_load_addons_info() {
+  var $addons_info_wrapper = jQuery('.addons-info-holder');
+  $addons_info_wrapper.addClass('os-loading');
+  var route = $addons_info_wrapper.data('route');
+  var data = {
+    action: 'latepoint_route_call',
+    route_name: route,
+    params: '',
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      $addons_info_wrapper.removeClass('os-loading');
+      if (response.status === "success") {
+        if (response.message) {
+          $addons_info_wrapper.html(response.message);
+        } else {
+          $addons_info_wrapper.html('Something is wrong. Try refreshing the page.');
+        }
+      } else {
+        alert(response.message, 'error');
+      }
+    }
+  });
+}
+function latepoint_dismiss_message($elem) {
+  $elem.closest('.addon-message').slideUp(300);
+  return false;
+}
+function latepoint_check_for_updates() {
+  if (jQuery('.version-log-w').length) {
+    var $log_wrapper = jQuery('.version-log-w');
+    $log_wrapper.addClass('os-loading');
+    var route = $log_wrapper.data('route');
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: route,
+      params: '',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $log_wrapper.removeClass('os-loading');
+        if (response.status === "success") {
+          $log_wrapper.html(response.message);
+        } else {
+          alert(response.message, 'error');
+        }
+      }
+    });
+  }
+  if (jQuery('.version-status-info').length) {
+    var $version_info_wrapper = jQuery('.version-status-info');
+    $version_info_wrapper.addClass('os-loading');
+    var route = $version_info_wrapper.data('route');
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: route,
+      params: '',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $version_info_wrapper.removeClass('os-loading');
+        if (response.status === "success") {
+          $version_info_wrapper.html(response.message);
+        } else {
+          alert(response.message, 'error');
+        }
+      }
+    });
+  }
+  if (jQuery('.addons-info-holder').length) {
+    latepoint_load_addons_info();
+  }
+}
+
+// DOCUMENT READY
+jQuery(document).ready(function ($) {
+  latepoint_check_for_updates();
+  jQuery('body').on('click', '.addon-category-filter-trigger', function () {
+    jQuery('.addons-categories-wrapper .addon-category-filter-trigger.is-selected').removeClass('is-selected');
+    if (jQuery(this).data('category')) {
+      var category = jQuery(this).data('category').toString();
+      jQuery('.addon-box').addClass('hidden');
+      jQuery('.addon-box').each(function () {
+        if (jQuery(this).data('category').toString().split(',').includes(category)) jQuery(this).removeClass('hidden');
+      });
+    } else {
+      jQuery('.addon-box').removeClass('hidden');
+    }
+    jQuery(this).addClass('is-selected');
+    return false;
+  });
+
+  // Install addon button click
+  jQuery('.addons-info-holder').on('click', '.os-addon-action-btn', function () {
+    var $install_btn = jQuery(this);
+    $install_btn.addClass('os-loading');
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: $install_btn.data('route-name'),
+      params: {
+        addon_name: $install_btn.data('addon-name'),
+        addon_path: $install_btn.data('addon-path')
+      },
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $install_btn.removeClass('os-loading');
+        if (response.status === "success") {
+          latepoint_add_notification(response.message);
+          latepoint_load_addons_info();
+        } else {
+          if (response.code == '404') {
+            latepoint_show_data_in_lightbox(response.message);
+          } else {
+            alert(response.message);
+          }
+        }
+      }
+    });
+    return false;
+  });
+});
+"use strict";
+
+/*
+ * Copyright (c) 2022 LatePoint LLC. All rights reserved.
+ */
+
+function latepoint_init_json_view() {
+  var $pre_element = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+  if (!$pre_element) {
+    // if pre is not provided -search for all unitialised ones
+    $pre_element = jQuery('pre.format-json:not(.json-document)');
+  }
+  if ($pre_element.length) {
+    $pre_element.each(function () {
+      var json_data = JSON.parse(jQuery(this).html());
+      jQuery(this).jsonViewer(json_data);
+    });
+  }
+}
+function latepoint_init_accordions() {
+  jQuery('.latepoint-admin').on('click', '.os-accordion-title', function () {
+    jQuery(this).closest('.os-accordion-wrapper').toggleClass('is-open');
+    return false;
+  });
+}
+function latepoint_init_sticky_side_menu() {
+  jQuery('.os-sticky-side-menu a').on('click', function () {
+    jQuery('.os-sticky-side-menu li.os-active').removeClass('os-active');
+    jQuery(this).closest('li').addClass('os-active');
+    var section_anchor = jQuery(this).data('section-anchor');
+    var position = jQuery('.section-anchor#' + section_anchor).offset();
+    jQuery('html').animate({
+      scrollTop: position.top
+    }, 300);
+    return false;
+  });
+}
+function latepoint_init_template_library() {
+  jQuery('.os-templates-wrapper .template-type-selector').on('click', function () {
+    jQuery('.os-templates-wrapper .template-type-selector.is-selected').removeClass('is-selected');
+    jQuery(this).addClass('is-selected');
+    var user_type = jQuery(this).data('user-type');
+    jQuery('.os-templates-wrapper .os-template-item.hidden').removeClass('hidden');
+    jQuery('.os-templates-wrapper .os-template-item:not([data-user-type="' + user_type + '"])').addClass('hidden');
+    return false;
+  });
+  jQuery('.os-templates-wrapper .os-template-item').on('click', function () {
+    var $this = jQuery(this);
+    $this.closest('.os-templates-list').find('.os-template-item.selected').removeClass('selected');
+    $this.addClass('selected');
+    var templateId = $this.data('id');
+    jQuery('.os-template-preview').hide();
+    jQuery('.os-template-preview[data-id="' + templateId + '"]').show();
+    return false;
+  });
+  jQuery('.latepoint-select-template-btn').on('click', function () {
+    var $btn = jQuery(this);
+    var route_name = $btn.data('route');
+    var action_id = $btn.data('action-id');
+    var action_type = $btn.data('action-type');
+    $btn.addClass('os-loading');
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route_name,
+      params: {
+        template_id: jQuery('.os-template-item.selected').data('id'),
+        action_id: action_id,
+        action_type: action_type
+      },
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: 'post',
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $btn.removeClass('os-loading');
+        if (response.status === latepoint_helper.response_status.success) {
+          var $action_form = jQuery('.process-action-form[data-id="' + action_id + '"]');
+          $action_form.find('.process-action-settings').html(response.message);
+          latepoint_init_process_action_form($action_form);
+          latepoint_lightbox_close();
+        } else {
+          alert("Error!");
+        }
+      }
+    });
+    return false;
+  });
+}
+function latepoint_init_default_form_fields_settings() {
+  if (jQuery('.os-default-fields').length) {
+    jQuery('.os-default-field input[type="checkbox"], .os-default-field select').on('change', function (event) {
+      latepoint_update_default_form_fields_settings();
+    });
+    jQuery('.os-default-field .os-toggler').on('ostoggler:toggle', function (event) {
+      if (jQuery(event.currentTarget).hasClass('off')) {
+        jQuery(event.currentTarget).closest('.os-default-field').addClass('is-disabled');
+      } else {
+        jQuery(event.currentTarget).closest('.os-default-field').removeClass('is-disabled');
+      }
+      latepoint_update_default_form_fields_settings();
+    });
+  }
+}
+function latepoint_update_default_form_fields_settings() {
+  var $wrapper = jQuery('.os-default-fields');
+  var form_data = new FormData($wrapper.find('form')[0]);
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: $wrapper.data('route'),
+    params: latepoint_formdata_to_url_encoded_string(form_data),
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      latepoint_add_notification(response.message);
+    }
+  });
+}
+function latepoint_submit_quick_booking_form() {
+  var $quick_edit_form = jQuery('form.booking-quick-edit-form');
+  var errors = latepoint_validate_form($quick_edit_form);
+  if (errors.length) {
+    var error_messages = errors.map(function (error) {
+      return error.message;
+    }).join(', ');
+    latepoint_add_notification(error_messages, 'error');
+    return false;
+  }
+  $quick_edit_form.find('button[type="submit"]').addClass('os-loading');
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    processData: false,
+    contentType: false,
+    url: latepoint_helper.ajaxurl,
+    data: latepoint_create_form_data_from_booking_form($quick_edit_form),
+    success: function success(response) {
+      $quick_edit_form.find('button[type="submit"]').removeClass('os-loading');
+      if (response.form_values_to_update) {
+        jQuery.each(response.form_values_to_update, function (name, value) {
+          $quick_edit_form.find('[name="' + name + '"]').val(value);
+        });
+      }
+      if (response.status === "success") {
+        latepoint_add_notification(response.message);
+        latepoint_reload_after_booking_save();
+      } else {
+        latepoint_add_notification(response.message, 'error');
+      }
+    }
+  });
+}
+function latepoint_reload_balance_and_payments() {
+  var $wrapper = jQuery('.balance-payment-info');
+  $wrapper.closest('.balance-payment-wrapper').addClass('os-loading');
+  var route_name = $wrapper.data('route');
+  var $quick_edit_form = $wrapper.closest('form.booking-quick-edit-form');
+  var form_data = new FormData($quick_edit_form[0]);
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route_name,
+    params: latepoint_formdata_to_url_encoded_string(form_data),
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      $wrapper.closest('.balance-payment-wrapper').removeClass('os-loading');
+      if (response.status === "success") {
+        jQuery('.balance-payment-wrapper').html(response.message);
+      } else {
+        alert(response.message);
+      }
+    }
+  });
+}
+function latepoint_init_side_menu() {
+  jQuery('.menu-toggler').on('click', function () {
+    var layout_style = 'full';
+    if (jQuery('.latepoint-side-menu-w').hasClass('side-menu-full')) {
+      layout_style = 'compact';
+      jQuery('.latepoint-side-menu-w').addClass('side-menu-compact').removeClass('side-menu-full');
+    } else {
+      jQuery('.latepoint-side-menu-w').addClass('side-menu-full').removeClass('side-menu-compact');
+    }
+    var route_name = jQuery(this).data('route');
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route_name,
+      params: {
+        menu_layout_style: layout_style
+      },
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {}
+    });
+    return false;
+  });
+}
+function latepoint_init_grouped_bookings_form() {}
+function latepoint_quick_booking_customer_cleared() {
+  latepoint_init_input_masks(jQuery('.quick-booking-form-w .customer-quick-edit-form-w'));
+}
+function latepoint_quick_booking_customer_selected() {
+  latepoint_init_input_masks(jQuery('.quick-booking-form-w .customer-quick-edit-form-w'));
+  jQuery('.customer-info-w').removeClass('selecting').addClass('selected');
+}
+function latepoint_custom_day_removed($elem) {
+  $elem.closest('.custom-day-work-period').fadeOut(300, function () {
+    jQuery(this).remove();
+  });
+}
+function latepoint_count_active_connections($connection_wrapper) {
+  var connected_services_count = $connection_wrapper.find('.connection-children-list li.active').length;
+  var all_services_count = $connection_wrapper.find('.connection-children-list li').length;
+  if (connected_services_count == all_services_count) {
+    connected_services_count = jQuery('.selected-connections').data('all-text');
+    jQuery('.selected-connections').removeClass('not-all-selected');
+  } else {
+    connected_services_count = connected_services_count + '/' + all_services_count;
+    jQuery('.selected-connections').addClass('not-all-selected');
+    $connection_wrapper.closest('.white-box').find('.os-select-all-toggler').prop('checked', false);
+  }
+  $connection_wrapper.find('.selected-connections strong').text(connected_services_count);
+}
+function latepoint_custom_field_removed($elem) {
+  $elem.closest('.os-form-block').remove();
+}
+function latepoint_coupon_removed($elem) {
+  $elem.closest('.os-coupon-form').remove();
+}
+function latepoint_reminder_removed($elem) {
+  $elem.closest('.os-reminder-form').remove();
+}
+function latepoint_init_form_blocks() {
+  jQuery('.latepoint-content-w').on('click', '.os-form-block-header', function () {
+    jQuery(this).closest('.os-form-block').toggleClass('os-is-editing');
+    return false;
+  });
+  jQuery('.latepoint-content-w').on('keyup', '.os-form-block-name-input', function () {
+    jQuery(this).closest('.os-form-block').find('.os-form-block-name').text(jQuery(this).val());
+  });
+}
+function latepoint_init_coupons_form() {
+  jQuery('.latepoint-content-w').on('click', '.os-coupon-form-info', function () {
+    jQuery(this).closest('.os-coupon-form').toggleClass('os-is-editing');
+    return false;
+  });
+  jQuery('.latepoint-content-w').on('change', 'select.os-coupon-medium-select', function () {
+    if (jQuery(this).val() == 'email') {
+      jQuery(this).closest('.os-coupon-form').find('.os-coupon-email-subject').show();
+    } else {
+      jQuery(this).closest('.os-coupon-form').find('.os-coupon-email-subject').hide();
+    }
+  });
+  jQuery('.latepoint-content-w').on('keyup', '.os-coupon-name-input', function () {
+    jQuery(this).closest('.os-coupon-form').find('.os-coupon-name').text(jQuery(this).val());
+  });
+  jQuery('.latepoint-content-w').on('keyup', '.os-coupon-code-input', function () {
+    jQuery(this).closest('.os-coupon-form').find('.os-coupon-code').text(jQuery(this).val());
+  });
+}
+function latepoint_init_reminders_form() {
+  jQuery('.latepoint-content-w').on('click', '.os-reminder-form-info', function () {
+    jQuery(this).closest('.os-reminder-form').toggleClass('os-is-editing');
+    return false;
+  });
+  jQuery('.latepoint-content-w').on('change', 'select.os-reminder-medium-select', function () {
+    if (jQuery(this).val() == 'email') {
+      jQuery(this).closest('.os-reminder-form').find('.os-reminder-email-subject').show();
+    } else {
+      jQuery(this).closest('.os-reminder-form').find('.os-reminder-email-subject').hide();
+    }
+  });
+  jQuery('.latepoint-content-w').on('keyup', '.os-reminder-name-input', function () {
+    jQuery(this).closest('.os-reminder-form').find('.os-reminder-name').text(jQuery(this).val());
+  });
+}
+function latepoint_custom_field_saved($elem) {}
+function latepoint_init_custom_day_schedule() {
+  latepoint_init_input_masks(jQuery('.latepoint-lightbox-w .custom-day-schedule-w'));
+  jQuery('.period-type-selector').on('change', function () {
+    jQuery(this).closest('.custom-day-calendar').attr('data-period-type', jQuery(this).val());
+    jQuery('.custom-day-calendar').attr('data-picking', 'start').data('picking', 'start');
+    if (jQuery(this).val() == 'range') {
+      jQuery('.custom-day-calendar-head .calendar-heading').text(jQuery('.custom-day-calendar-head .calendar-heading').data('label-start'));
+      jQuery('.custom-day-calendar #start_custom_date').focus();
+    } else {
+      jQuery('.custom-day-calendar .os-day.selected').removeClass('selected');
+      jQuery('.latepoint-lightbox-footer').hide();
+      jQuery('.custom-day-calendar-head .calendar-heading').text(jQuery('.custom-day-calendar-head .calendar-heading').data('label-single'));
+    }
+  });
+  jQuery('#custom_day_calendar_month, #custom_day_calendar_year').on('change', function () {
+    var $calendar = jQuery('.custom-day-calendar-month');
+    var route_name = $calendar.data('route');
+    $calendar.addClass('os-loading');
+    var target_date_string = jQuery('#custom_day_calendar_year').val() + '-' + jQuery('#custom_day_calendar_month').val() + '-01';
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route_name,
+      params: {
+        target_date_string: target_date_string
+      },
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $calendar.removeClass('os-loading');
+        if (data.status === "success") {
+          $calendar.html(data.message);
+        } else {
+          // console.log(data.message);
+        }
+      }
+    });
+  });
+  jQuery('.custom-day-calendar').on('focus', '#start_custom_date', function () {
+    jQuery('.custom-day-calendar-head .calendar-heading').text(jQuery('.custom-day-calendar-head .calendar-heading').data('label-start'));
+    jQuery('.custom-day-calendar').attr('data-picking', 'start').data('picking', 'start');
+  });
+  jQuery('.custom-day-calendar').on('focus', '#end_custom_date', function () {
+    jQuery('.custom-day-calendar-head .calendar-heading').text(jQuery('.custom-day-calendar-head .calendar-heading').data('label-end'));
+    jQuery('.custom-day-calendar').attr('data-picking', 'end').data('picking', 'end');
+  });
+  jQuery('.custom-day-calendar').on('click', '.os-day', function () {
+    var $this = jQuery(this);
+    $this.closest('.custom-day-calendar').find('.os-day.selected').removeClass('selected');
+    $this.addClass('selected');
+    if (jQuery('.custom-day-calendar').data('picking') == 'start') {
+      jQuery('.custom-day-settings-w #start_custom_date').val($this.data('date')).trigger('keyup');
+      if (jQuery('.period-type-selector').val() == 'range') {
+        jQuery('.custom-day-calendar #end_custom_date').focus();
+        if (!jQuery('.custom-day-calendar #end_custom_date').val()) return false;
+      }
+    } else {
+      jQuery('.custom-day-settings-w #end_custom_date').val($this.data('date')).trigger('keyup');
+    }
+    jQuery('.latepoint-lightbox-footer').slideDown(200);
+    if (jQuery('.custom-day-calendar').data('show-schedule') == 'yes') jQuery('.latepoint-lightbox-w').removeClass('hide-schedule');
+    return false;
+  });
+}
+function latepoint_init_updates_page() {}
+function latepoint_calendar_set_month_label() {
+  jQuery('.os-current-month-label .current-month').text(jQuery('.os-monthly-calendar-days-w.active').data('calendar-month-label'));
+  jQuery('.os-current-month-label .current-year').text(jQuery('.os-monthly-calendar-days-w.active').data('calendar-year'));
+}
+function latepoint_init_element_togglers() {
+  jQuery('[data-toggle-element]').on('click', function () {
+    var $this = jQuery(this);
+    $this.closest('.os-form-checkbox-group').toggleClass('is-checked');
+    jQuery($this.data('toggle-element')).toggle();
+  });
+}
+function latepoint_init_color_picker() {
+  if (jQuery('.latepoint-color-picker').length) {
+    jQuery('.latepoint-color-picker').each(function () {
+      var color = jQuery(this).data('color');
+      var picker = jQuery(this)[0];
+      var $picker_wrapper = jQuery(this).closest('.latepoint-color-picker-w');
+      Pickr.create({
+        el: picker,
+        default: color,
+        comparison: false,
+        useAsButton: true,
+        components: {
+          // Main components
+          preview: true,
+          opacity: false,
+          hue: true,
+          // Input / output Options
+          interaction: {
+            input: false,
+            clear: false,
+            save: true
+          }
+        },
+        onChange: function onChange(hsva, instance) {
+          $picker_wrapper.find('.os-form-control').val(hsva.toHEX().toString());
+        }
+      });
+    });
+  }
+}
+function latepoint_lightbox_close() {
+  jQuery('body').removeClass('latepoint-lightbox-active');
+  jQuery('.latepoint-lightbox-w').remove();
+}
+function latepoint_reload_select_service_categories() {
+  jQuery('.service-selector-adder-field-w').each(function () {
+    var $trigger_elem = jQuery(this);
+    var route = jQuery('.service-selector-adder-field-w').find('select').data('select-source');
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route,
+      params: '',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $trigger_elem.removeClass('os-loading');
+        if (response.status === "success") {
+          latepoint_lightbox_close();
+          $trigger_elem.find('select').html(response.message);
+          $trigger_elem.find('select option:last').attr('selected', 'selected');
+        } else {
+          alert(response.message, 'error');
+        }
+      }
+    });
+  });
+}
+function latepoint_wizard_item_editing_cancelled() {
+  jQuery('.os-wizard-setup-w').removeClass('is-sub-editing');
+  jQuery('.os-wizard-footer').show();
+  jQuery('.os-wizard-footer .os-wizard-next-btn').show();
+}
+function latepoint_load_quick_availability($trigger_elem) {
+  var custom_agent_id = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+  var start_date = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+  var load_more_days = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
+  var load_prev_days = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
+  $trigger_elem.addClass('os-loading');
+  var route = jQuery('.trigger-quick-availability').data('route');
+  var $quick_booking_form = jQuery('.quick-booking-form-w');
+  if (custom_agent_id) $quick_booking_form.find('select[name="booking[agent_id]"]').val(custom_agent_id);
+  if (!$quick_booking_form.find('input[name="booking[service_id]"]').val() || $quick_booking_form.find('input[name="booking[service_id]"]').val() == 0) {
+    $quick_booking_form.find('.os-services-select-field-w .service-option:first').trigger('click');
+  }
+  var form_data = new FormData($quick_booking_form.find('form')[0]);
+  if (start_date) form_data.set('start_date', start_date);
+  if (load_more_days || load_prev_days) form_data.set('show_days_only', true);
+  if (load_prev_days) form_data.set('previous_days', true);
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route,
+    params: latepoint_formdata_to_url_encoded_string(form_data),
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      $trigger_elem.removeClass('os-loading');
+      if (response.status === "success") {
+        if (load_more_days) {
+          jQuery('.latepoint-side-panel-w .quick-availability-per-day-w').html(response.message);
+        } else if (load_prev_days) {
+          jQuery('.latepoint-side-panel-w .quick-availability-per-day-w').html(response.message);
+          jQuery('.latepoint-side-panel-w .os-availability-days').scrollTop(30);
+        } else {
+          if (jQuery('.latepoint-side-panel-w .side-sub-panel').length) {
+            jQuery('.latepoint-side-panel-w .side-sub-panel').replaceWith(response.message);
+          } else {
+            jQuery('.latepoint-side-panel-w').append(response.message);
+          }
+          jQuery('.latepoint-side-panel-w .os-availability-days').scrollTop(30);
+          latepoint_init_quick_availability_form();
+        }
+      } else {
+        alert(response.message, 'error');
+      }
+    }
+  });
+}
+function latepoint_init_quick_availability_form() {
+  var selected_start_date = jQuery('.quick-booking-form-w input#booking_start_date').val();
+  var selected_start_time = jQuery('.quick-booking-form-w input[name="booking[start_time][formatted_value]"]').val();
+  var selected_start_time_ampm = jQuery('.quick-booking-form-w input[name="booking[start_time][ampm]"]').val();
+  var selected_start_time_minutes = latepoint_hours_and_minutes_to_minutes(selected_start_time, selected_start_time_ampm);
+  jQuery('.quick-availability-per-day-w .os-availability-days').find('.agent-timeslot[data-formatted-date="' + selected_start_date + '"][data-minutes="' + selected_start_time_minutes + '"]').addClass('selected');
+  jQuery('.quick-availability-per-day-w').on('click', '.load-more-quick-availability', function () {
+    latepoint_load_quick_availability(jQuery(this), false, jQuery(this).data('start-date'), true);
+    return false;
+  });
+  jQuery('.quick-availability-per-day-w').on('click', '.load-prev-quick-availability', function () {
+    latepoint_load_quick_availability(jQuery(this), false, jQuery(this).data('start-date'), false, true);
+    return false;
+  });
+  jQuery('.quick-availability-per-day-w select[name="booking[agent_id]"]').on('change', function () {
+    latepoint_load_quick_availability(jQuery('.trigger-quick-availability'), jQuery(this).val());
+  });
+  jQuery('.os-time-group label').on('click', function () {
+    jQuery(this).closest('.os-time-group').find('.os-form-control').focus();
+  });
+  jQuery('.quick-availability-per-day-w').on('click', '.fill-booking-time', function () {
+    jQuery('.os-availability-days .agent-timeslot.selected').removeClass('selected');
+    jQuery(this).addClass('selected');
+    var date = jQuery(this).data('date');
+    var formatted_date = jQuery(this).data('formatted-date');
+    var minutes = jQuery(this).data('minutes');
+    var service_duration = jQuery('.os-services-select-field-w .service-option-selected').data('duration');
+    var $form_w = jQuery('.quick-booking-form-w');
+    $form_w.find('input[name="booking[start_date]"]').val(formatted_date);
+    var start_minutes = minutes;
+    var start_hours_and_minutes = latepoint_minutes_to_hours_and_minutes(start_minutes);
+    if (start_minutes >= 720) {
+      $form_w.find('.quick-start-time-w .time-pm').trigger('click');
+    } else {
+      $form_w.find('.quick-start-time-w .time-am').trigger('click');
+    }
+    $form_w.find('input[name="booking[start_time][formatted_value]"]').val(start_hours_and_minutes);
+    latepoint_set_booking_end_time();
+    $form_w.find('.ws-period, .as-period').addClass('animate-filled-in');
+    setTimeout(function () {
+      $form_w.find('.ws-period, .as-period').removeClass('animate-filled-in');
+    }, 500);
+  });
+}
+function latepoint_reload_week_view_calendar() {
+  var start_date = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+  var service_id = jQuery('.cc-availability-toggler #overlay_service_availability').val() == 'on' ? jQuery('.calendar-service-selector').val() : false;
+  var agent_id = jQuery('.calendar-agent-selector').val();
+  var location_id = jQuery('.calendar-location-selector').val();
+  var calendar_start_date = start_date ? start_date : jQuery('.calendar-start-date').val();
+  latepoint_load_calendar(calendar_start_date, agent_id, location_id, service_id);
+}
+function latepoint_init_work_period_form() {
+  latepoint_mask_timefield(jQuery('.os-time-input-w .os-mask-time'));
+}
+function latepoint_close_side_panel() {
+  jQuery('.latepoint-side-panel-w').remove();
+}
+function reload_process_jobs_table() {
+  if (jQuery('table.os-reload-on-booking-update').length) latepoint_filter_table(jQuery('table.os-reload-on-booking-update'), jQuery('table.os-reload-on-booking-update'));
+}
+function latepoint_reload_after_booking_save() {
+  latepoint_reload_calendar_view();
+  jQuery('.os-widget').each(function () {
+    latepoint_reload_widget(jQuery(this));
+  });
+  if (jQuery('table.os-reload-on-booking-update').length) latepoint_filter_table(jQuery('table.os-reload-on-booking-update'), jQuery('table.os-reload-on-booking-update'));
+  latepoint_close_side_panel();
+}
+function latepoint_transaction_removed($trigger) {
+  $trigger.closest('.quick-add-transaction-box-w').remove();
+  latepoint_reload_balance_and_payments();
+}
+function latepoint_init_quick_booking_form() {
+  jQuery('.latepoint-admin').on('click', '.quick-booking-form-view-log-btn', function () {
+    var $trigger_elem = jQuery(this);
+    $trigger_elem.addClass('os-loading');
+    var route = $trigger_elem.data('route');
+    var data = {
+      action: 'latepoint_route_call',
+      route_name: route,
+      params: {
+        booking_id: $trigger_elem.data('booking-id')
+      },
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $trigger_elem.removeClass('os-loading');
+        if (response.status === "success") {
+          if (jQuery('.latepoint-side-panel-w .side-sub-panel').length) {
+            jQuery('.latepoint-side-panel-w .side-sub-panel').replaceWith(response.message);
+          } else {
+            jQuery('.latepoint-side-panel-w').append(response.message);
+          }
+        } else {
+          alert(response.message, 'error');
+        }
+      }
+    });
+    return false;
+  });
+  jQuery('.booking-quick-edit-form').on('submit', function (e) {
+    if (jQuery(this).find('button[type="submit"]').hasClass('os-loading')) return false;
+    e.preventDefault();
+    latepoint_submit_quick_booking_form();
+  });
+  var $quick_booking_form = jQuery('.quick-booking-form-w');
+  latepoint_lightbox_close();
+  latepoint_remove_floating_popup();
+  latepoint_init_input_masks($quick_booking_form);
+  $quick_booking_form.on("keydown", ":input:not(textarea):not(:submit)", function (event) {
+    if (event.key == "Enter") {
+      event.preventDefault();
+    }
+  });
+  jQuery('.os-late-select').lateSelect();
+  jQuery('.reload-price-breakdown').on('click', function () {
+    latepoint_reload_price_breakdown();
+    return false;
+  });
+  jQuery('.quick-booking-form-w').on('click', '.trigger-remove-transaction-btn', function () {
+    jQuery(this).closest('.quick-add-transaction-box-w').remove();
+    return false;
+  });
+  jQuery('.trigger-quick-availability').on('click', function () {
+    latepoint_load_quick_availability(jQuery('.open-quick-availability-btn'));
+    return false;
+  });
+  jQuery('.quick-booking-form-w input[name="booking[start_time][formatted_value]"]').on('change', function () {
+    latepoint_set_booking_end_time();
+  });
+  jQuery('.quick-booking-form-w input[name="booking[end_time][formatted_value]"]').on('change', function () {
+    latepoint_is_next_day();
+  });
+  jQuery('.customers-selector-search-input').on('keyup', function () {
+    var $queryInput = jQuery(this);
+    var query = $queryInput.val().toLowerCase();
+    if (query == $queryInput.data('current-query')) return;
+
+    // Search
+    $queryInput.closest('.customers-selector-search-w').addClass('os-loading');
+    $queryInput.data('searching-query', query);
+    setTimeout(function () {
+      if (query != jQuery('.customers-selector-search-input').data('searching-query')) return;
+      var data = {
+        action: latepoint_helper.route_action,
+        route_name: $queryInput.data('route'),
+        params: {
+          query: query
+        },
+        return_format: 'json'
+      };
+      jQuery.ajax({
+        type: "post",
+        dataType: "json",
+        url: latepoint_helper.ajaxurl,
+        data: data,
+        success: function success(response) {
+          if ($queryInput.data('searching-query') != query) return;
+          $queryInput.closest('.customers-selector-search-w').removeClass('os-loading');
+          if (response.status === "success") {
+            $queryInput.data('current-query', query);
+            jQuery('.quick-booking-form-w .customers-options-list').html(response.message);
+          } else {
+            console.log(response.message);
+          }
+        }
+      });
+    }, 300, query, $queryInput);
+  });
+  jQuery('.latepoint-side-panel-w').on('change', '.agent-selector', function () {
+    latepoint_apply_agent_selector_change();
+  });
+  jQuery('.latepoint-side-panel-w').on('change', 'select[name="booking[location_id]"]', function () {
+    latepoint_apply_agent_selector_change();
+  });
+  jQuery('.latepoint-side-panel-w').on('change', 'select[name="booking[total_attendies]"]', function () {
+    latepoint_apply_agent_selector_change();
+  });
+  jQuery('.latepoint-side-panel-w').on('change', '.os-affects-duration', function () {
+    latepoint_set_booking_end_time();
+    if (jQuery('.quick-availability-per-day-w').length) {
+      latepoint_load_quick_availability(jQuery('.trigger-quick-availability'));
+    }
+  });
+  jQuery('.latepoint-side-panel-w').on('change', '.os-affects-price', function () {
+    latepoint_reload_price_breakdown();
+  });
+  jQuery('.latepoint-side-panel-w').on('change', '.os-affects-balance', function () {
+    latepoint_reload_balance_and_payments();
+  });
+  jQuery('.latepoint-side-panel-w').on('keyup', '.os-affects-balance', function (event) {
+    if (event.keyCode == 13) {
+      latepoint_reload_balance_and_payments();
+    }
+  });
+  jQuery('.latepoint-side-panel-w').on('click', '.services-options-list .service-option', function () {
+    var selected_option_html = jQuery(this).html();
+    var $selected_option = jQuery(this).closest('.os-services-select-field-w').find('.service-option-selected');
+    $selected_option.html(selected_option_html).data('id', jQuery(this).data('id')).data('duration', jQuery(this).data('duration')).data('duration-name', jQuery(this).data('duration-name')).data('buffer-before', jQuery(this).data('buffer-before')).data('buffer-after', jQuery(this).data('buffer-after')).data('capacity-min', jQuery(this).data('capacity-min')).data('capacity-max', jQuery(this).data('capacity-max')).data('extra-durations', jQuery(this).data('extra-durations'));
+    jQuery(this).closest('.os-services-select-field-w').find('.service-option.selected').removeClass('selected');
+    jQuery(this).addClass('selected').closest('.os-services-select-field-w').removeClass('active');
+    latepoint_apply_service_selector_change();
+    return false;
+  });
+  var $quick_booking_form = jQuery('.quick-booking-form-w');
+  $quick_booking_form.trigger('latepoint:initQuickBookingForm');
+}
+function latepoint_reload_widget($widget_elem) {
+  var form_data = $widget_elem.find('select, input').serialize();
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: $widget_elem.data('os-reload-action'),
+    params: form_data,
+    return_format: 'json'
+  };
+  $widget_elem.addClass('os-loading');
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      $widget_elem.removeClass('os-loading');
+      if (response.status === "success") {
+        var $updated_widget_elem = jQuery(response.message);
+        $updated_widget_elem.removeClass('os-widget-animated');
+        $widget_elem = $widget_elem.replaceWith($updated_widget_elem);
+        latepoint_init_daterangepicker($updated_widget_elem.find('.os-date-range-picker'));
+        if ($widget_elem.hasClass('os-widget-top-agents')) latepoint_init_circles_charts();
+        if ($widget_elem.hasClass('os-widget-daily-bookings')) {
+          latepoint_init_daily_bookings_chart();
+          latepoint_init_donut_charts();
+        }
+      } else {
+        alert(response.message);
+      }
+    }
+  });
+}
+function latepoint_load_calendar(target_date, agent_id) {
+  var location_id = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+  var service_id = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
+  var route_name = jQuery('.calendar-week-agent-w').data('calendar-action');
+  jQuery('.calendar-week-agent-w').addClass('os-loading');
+  var params_arr = {
+    target_date: target_date,
+    agent_id: agent_id
+  };
+  if (location_id) params_arr.location_id = location_id;
+  if (service_id) params_arr.service_id = service_id;
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route_name,
+    params: jQuery.param(params_arr),
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      if (response.status === "success") {
+        jQuery('.calendar-week-agent-w').html(response.message).removeClass('os-loading');
+        jQuery('.calendar-load-target-date.os-loading').removeClass('os-loading');
+      } else {
+        alert(response.message);
+      }
+    }
+  });
+}
+function latepoint_init_quick_transaction_form() {
+  latepoint_mask_money(jQuery('.quick-add-transaction-box-w .os-mask-money'));
+}
+function latepoint_reload_price_breakdown() {
+  var $trigger = jQuery('.reload-price-breakdown');
+  $trigger.addClass('os-loading');
+  var $quick_edit_form = $trigger.closest('form.booking-quick-edit-form');
+  var form_data = new FormData($quick_edit_form[0]);
+  var route = $trigger.data('route');
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route,
+    params: latepoint_formdata_to_url_encoded_string(form_data),
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      $trigger.removeClass('os-loading');
+      if (response.status === "success") {
+        jQuery('.price-breakdown-wrapper').html(response.message);
+        latepoint_mask_money(jQuery('.price-breakdown-wrapper .os-mask-money'));
+        latepoint_reload_balance_and_payments();
+      } else {
+        alert(response.message);
+      }
+    }
+  });
+}
+function latepoint_complex_selector_select($connection_wrappers) {
+  $connection_wrappers.each(function () {
+    jQuery(this).addClass('active');
+    jQuery(this).find('.connection-children-list li').addClass('active');
+    jQuery(this).find('.connection-child-is-connected').val('yes');
+    latepoint_count_active_connections(jQuery(this));
+  });
+}
+function latepoint_complex_selector_deselect($connection_wrappers) {
+  $connection_wrappers.each(function () {
+    jQuery(this).removeClass('active');
+    jQuery(this).removeClass('show-customize-box');
+    jQuery(this).find('.connection-children-list li.active').removeClass('active');
+    jQuery(this).find('.connection-child-is-connected').val('no');
+    latepoint_count_active_connections(jQuery(this));
+  });
+}
+function latepoint_apply_agent_selector_change() {
+  if (jQuery('.quick-availability-per-day-w').length) {
+    latepoint_load_quick_availability(jQuery('.trigger-quick-availability'));
+  }
+}
+function latepoint_is_next_day() {
+  var $quick_edit_form = jQuery('form.booking-quick-edit-form');
+  var start_time = $quick_edit_form.find('input[name="booking[start_time][formatted_value]"]').val();
+  var start_time_ampm = $quick_edit_form.find('input[name="booking[start_time][ampm]"]').val();
+  var start_time_minutes = latepoint_hours_and_minutes_to_minutes(start_time, start_time_ampm);
+  var end_time = $quick_edit_form.find('input[name="booking[end_time][formatted_value]"]').val();
+  var end_time_ampm = $quick_edit_form.find('input[name="booking[end_time][ampm]"]').val();
+  var end_time_minutes = latepoint_hours_and_minutes_to_minutes(end_time, end_time_ampm);
+  if (end_time_minutes && end_time_minutes <= start_time_minutes) {
+    $quick_edit_form.find('.quick-end-time-w').addClass('ending-next-day');
+  } else {
+    $quick_edit_form.find('.quick-end-time-w').removeClass('ending-next-day');
+  }
+}
+function latepoint_set_booking_end_time() {
+  var $quick_edit_form = jQuery('form.booking-quick-edit-form');
+  var booking_duration = 0;
+  var service_duration = $quick_edit_form.find('.os-service-durations select').val();
+  booking_duration = booking_duration + service_duration;
+  if ($quick_edit_form.find('select[name="temp_service_extras_ids"] option:selected').length) {
+    $quick_edit_form.find('select[name="temp_service_extras_ids"] option:selected').each(function () {
+      var extra_duration = Number(jQuery(this).data('duration'));
+      var $extra_quantity_input = jQuery(this).closest('.lateselect-w').find('.ls-item[data-value="' + jQuery(this).val() + '"]').find('.os-late-quantity-selector-input');
+      if ($extra_quantity_input.length) extra_duration = Number(extra_duration) * Number($extra_quantity_input.val());
+      booking_duration = Number(booking_duration) + Number(extra_duration);
+    });
+  }
+  var start_time = $quick_edit_form.find('input[name="booking[start_time][formatted_value]"]').val();
+  if (start_time) {
+    var start_time_ampm = $quick_edit_form.find('input[name="booking[start_time][ampm]"]').val();
+    var start_time_minutes = latepoint_hours_and_minutes_to_minutes(start_time, start_time_ampm);
+    var end_time_minutes = parseInt(start_time_minutes) + parseInt(booking_duration);
+    if (end_time_minutes >= 24 * 60) end_time_minutes = end_time_minutes - 24 * 60;
+    var end_time_ampm = end_time_minutes >= 720 && end_time_minutes < 24 * 60 ? 'pm' : 'am';
+    var end_hours_and_minutes = latepoint_minutes_to_hours_and_minutes(end_time_minutes);
+    $quick_edit_form.find('input[name="booking[end_time][formatted_value]"]').val(end_hours_and_minutes);
+    $quick_edit_form.find('.quick-end-time-w .time-ampm-select.time-' + end_time_ampm).trigger('click');
+    $quick_edit_form.find('input[name="booking[end_time][formatted_value]"]').closest('.os-form-group').addClass('has-value');
+  }
+  latepoint_is_next_day();
+}
+function latepoint_apply_service_selector_change() {
+  var $selected_service = jQuery('.os-services-select-field-w .service-option-selected');
+  var service_id = $selected_service.data('id');
+  var buffer_before = $selected_service.data('buffer-before');
+  var buffer_after = $selected_service.data('buffer-after');
+  var default_duration = $selected_service.data('duration');
+  var default_duration_name = $selected_service.data('duration-name');
+  var min_capacity = $selected_service.data('capacity-min');
+  var max_capacity = $selected_service.data('capacity-max');
+  var extra_durations = $selected_service.data('extra-durations');
+  var $quick_edit_form = jQuery('form.booking-quick-edit-form');
+  $quick_edit_form.find('input[name="booking[buffer_before]"]').val(buffer_before).trigger('change').closest('.os-form-group').addClass('has-value');
+  $quick_edit_form.find('input[name="booking[buffer_after]"]').val(buffer_after).trigger('change').closest('.os-form-group').addClass('has-value');
+  $quick_edit_form.find('input[name="booking[service_id]"]').val(service_id).trigger('change').closest('.os-form-group').addClass('has-value');
+  var duration_name = default_duration_name ? default_duration_name : default_duration + ' ' + latepoint_helper.string_minutes;
+  var options = '<option value="' + default_duration + '">' + duration_name + '</option>';
+  if (extra_durations.length) {
+    jQuery.each(extra_durations, function (index, value) {
+      var duration_name = value.name ? value.name : value.duration + ' ' + latepoint_helper.string_minutes;
+      options += '<option value="' + value.duration + '">' + duration_name + '</option>';
+    });
+    $quick_edit_form.find('.os-service-durations').show();
+  } else {
+    $quick_edit_form.find('.os-service-durations').hide();
+  }
+  jQuery('.booking-total-attendies-selector-w .capacity-info strong').text(max_capacity);
+  var attendies_options_html = '';
+  for (var i = 1; i <= max_capacity; i++) {
+    attendies_options_html += '<option value="' + i + '">' + i + '</option>';
+  }
+  var selected_attendies = Math.min(jQuery('.booking-total-attendies-selector-w select').val(), max_capacity);
+  jQuery('.booking-total-attendies-selector-w select').html(attendies_options_html).val(selected_attendies);
+  if (max_capacity > 1) {
+    jQuery('.booking-total-attendies-selector-w').show();
+  } else {
+    jQuery('.booking-total-attendies-selector-w').hide();
+  }
+  $quick_edit_form.find('.os-service-durations select').html(options);
+  latepoint_set_booking_end_time();
+  if (jQuery('.quick-availability-per-day-w').length) {
+    latepoint_load_quick_availability(jQuery('.trigger-quick-availability'));
+  }
+  latepoint_init_input_masks($quick_edit_form);
+}
+function latepoint_init_sortable_columns() {
+  jQuery('.os-sortable-column').on('click', function () {
+    var current_direction = jQuery(this).hasClass('ordered-desc') ? 'desc' : 'asc';
+    var new_direction = current_direction == 'desc' ? 'asc' : 'desc';
+    jQuery(this).closest('table').find('.os-sortable-column').removeClass('ordered-desc').removeClass('ordered-asc');
+    jQuery(this).addClass('ordered-' + new_direction);
+    jQuery(this).closest('table').find('.records-ordered-by-key').val(jQuery(this).data('order-key'));
+    jQuery(this).closest('table').find('.records-ordered-by-direction').val(new_direction);
+    latepoint_filter_table(jQuery(this).closest('table'), jQuery(this).closest('.os-form-group'));
+    return false;
+  });
+}
+function latepoint_random_text(length) {
+  var result = '';
+  var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  var charactersLength = characters.length;
+  for (var i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+}
+function latepoint_get_order_for_service_categories() {}
+function latepoint_init_daterangepicker($elem) {
+  $elem.each(function () {
+    // DATERANGEPICKER
+    var picker_start_time = jQuery(this).find('input[name="date_from"], .os-datepicker-date-from').val();
+    var picker_end_time = jQuery(this).find('input[name="date_to"], .os-datepicker-date-to').val();
+    var locale = {};
+    if (jQuery(this).data('can-be-cleared')) locale = {
+      cancelLabel: jQuery(this).data('clear-btn-label')
+    };
+    moment.locale(latepoint_helper.wp_locale);
+    jQuery(this).daterangepicker({
+      opens: 'center',
+      singleDatePicker: jQuery(this).data('single-date') == 'yes',
+      startDate: picker_start_time ? moment(picker_start_time) : moment(),
+      endDate: picker_end_time ? moment(picker_end_time) : moment(),
+      locale: locale
+    });
+  });
+  $elem.on('cancel.daterangepicker', function (ev, picker) {
+    if (picker.element.data('can-be-cleared')) {
+      picker.element.find('input[name="date_from"], .os-datepicker-date-from').val('');
+      picker.element.find('input[name="date_to"], .os-datepicker-date-to').val('');
+      picker.element.find('span.range-picker-value').text(picker.element.data('no-value-label'));
+      if (picker.element.hasClass('os-table-filter-datepicker')) {
+        latepoint_filter_table(picker.element.closest('table'), picker.element.closest('.os-form-group'));
+      }
+    }
+  });
+  $elem.on('apply.daterangepicker', function (ev, picker) {
+    if (picker.element.data('single-date') == 'yes') {
+      picker.element.find('.range-picker-value').text(picker.startDate.format('ll'));
+    } else {
+      picker.element.find('.range-picker-value').text(picker.startDate.format('ll') + ' - ' + picker.endDate.format('ll'));
+    }
+    picker.element.find('input[name="date_from"], .os-datepicker-date-from').attr('value', picker.startDate.format('YYYY-MM-DD'));
+    picker.element.find('input[name="date_to"], .os-datepicker-date-to').attr('value', picker.endDate.format('YYYY-MM-DD'));
+    if (picker.element.closest('.os-widget').length) {
+      latepoint_reload_widget(picker.element.closest('.os-widget'));
+    }
+    if (picker.element.hasClass('os-table-filter-datepicker')) {
+      latepoint_filter_table(picker.element.closest('table'), picker.element.closest('.os-form-group'));
+    }
+  });
+}
+function latepoint_recalculate_items_count_in_category() {
+  jQuery('.os-category-items-count').each(function () {
+    var number_of_items = jQuery(this).closest('.os-category-parent-w').find('.item-in-category-w').length;
+    jQuery(this).find('span').text(number_of_items);
+  });
+}
+function latepoint_remove_agent_box($remove_btn) {
+  var $agent_box = $remove_btn.closest('.agent-box-w');
+  $agent_box.fadeOut(300, function () {
+    jQuery(this).remove();
+  });
+}
+function latepoint_remove_service_box($remove_btn) {
+  var $service_box = $remove_btn.closest('.service-box-w');
+  $service_box.fadeOut(300, function () {
+    jQuery(this).remove();
+  });
+}
+function latepoint_init_monthly_view() {
+  if (!jQuery('.calendar-month-agents-w').length) return;
+  jQuery('.monthly-calendar-headers select').on('change', function () {
+    var $calendar = jQuery('.calendar-month-agents-w');
+    var route_name = $calendar.data('route');
+    $calendar.addClass('os-loading');
+    var params = {
+      month: jQuery('#monthly_calendar_month_select').val(),
+      year: jQuery('#monthly_calendar_year_select').val()
+    };
+    if (jQuery('#monthly_calendar_location_select').length && jQuery('#monthly_calendar_location_select').val()) params.location_id = jQuery('#monthly_calendar_location_select').val();
+    if (jQuery('#monthly_calendar_service_select').length && jQuery('#monthly_calendar_service_select').val()) params.service_id = jQuery('#monthly_calendar_service_select').val();
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route_name,
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $calendar.removeClass('os-loading');
+        if (data.status === "success") {
+          $calendar.html(data.message);
+        } else {
+          // console.log(data.message);
+        }
+      }
+    });
+  });
+}
+function latepoint_init_copy_on_click_elements() {
+  jQuery('.os-click-to-copy').on('mouseenter', function () {
+    var $this = jQuery(this);
+    var position_info = $this.offset();
+    var width = jQuery(this).outerWidth();
+    var position_left = position_info.left + width + 5;
+    var position_top = position_info.top + 2 - jQuery(window).scrollTop();
+    if ($this.data('copy-tooltip-position') == 'left') {
+      position_left = position_left - width - 5;
+      position_top = position_top + $this.outerHeight() - jQuery(window).scrollTop();
+      ;
+    }
+    jQuery('body').append('<div class="os-click-to-copy-prompt" style="top: ' + position_top + 'px; left: ' + position_left + 'px;">' + latepoint_helper.click_to_copy_prompt + '</div>');
+  }).on('mouseleave', function () {
+    jQuery('body').find('.os-click-to-copy-prompt').remove();
+  });
+  jQuery('.os-click-to-copy').on('click', function () {
+    var $this = jQuery(this);
+    jQuery('body').find('.os-click-to-copy-prompt').hide();
+    var $tempElement = jQuery("<input>");
+    jQuery("body").append($tempElement);
+    var text_to_copy = $this.is('input') ? $this.val() : $this.text();
+    $tempElement.val(text_to_copy).trigger('select');
+    document.execCommand("Copy");
+    $tempElement.remove();
+    var position_info = $this.offset();
+    var width = $this.outerWidth();
+    var position_left = position_info.left + width + 5;
+    var position_top = position_info.top + 3 - jQuery(window).scrollTop();
+    ;
+    if ($this.data('copy-tooltip-position') == 'left') {
+      position_left = position_left - width - 5;
+      position_top = position_top + $this.outerHeight() - jQuery(window).scrollTop();
+      ;
+    }
+    var $done_prompt = jQuery('<div class="os-click-to-copy-done" style="top: ' + position_top + 'px; left: ' + position_left + 'px;">' + latepoint_helper.click_to_copy_done + '</div>');
+    $done_prompt.appendTo(jQuery('body')).animate({
+      opacity: 0,
+      left: position_left + 20
+    }, 600);
+    setTimeout(function () {
+      jQuery('body').find('.os-click-to-copy-done').remove();
+      jQuery('body').find('.os-click-to-copy-prompt').show();
+    }, 800);
+  });
+}
+function latepoint_remove_floating_popup() {
+  jQuery('.os-showing-popup').removeClass('os-showing-popup');
+  jQuery('.os-floating-popup').remove();
+}
+function latepoint_init_clickable_cells() {
+  jQuery('.os-clickable-popup-trigger').on('click', function () {
+    var $this = jQuery(this);
+    var position = $this.offset();
+    var width = $this.outerWidth();
+    var $popup = jQuery('<div class="os-floating-popup os-loading"></div>');
+    if ($this.hasClass('os-showing-popup')) {
+      latepoint_remove_floating_popup();
+    } else {
+      latepoint_remove_floating_popup();
+      $popup.offset({
+        top: position.top,
+        left: position.left + width / 2
+      });
+      jQuery('body').append($popup);
+      $this.addClass('os-showing-popup');
+      var route = $this.data('route');
+      var params = $this.data('os-params');
+      var data = {
+        action: latepoint_helper.route_action,
+        route_name: route,
+        params: params,
+        layout: 'none',
+        return_format: 'json'
+      };
+      jQuery.ajax({
+        type: "post",
+        dataType: "json",
+        url: latepoint_helper.ajaxurl,
+        data: data,
+        success: function success(response) {
+          if (response.status === latepoint_helper.response_status.success) {
+            jQuery('body').find('.os-floating-popup').html(response.message).removeClass('os-loading');
+            latepoint_init_customer_donut_chart();
+            jQuery('.os-floating-popup .os-floating-popup-close').on('click', function () {
+              latepoint_remove_floating_popup();
+              return false;
+            });
+          } else {}
+        }
+      });
+    }
+    return false;
+  });
+}
+function latepoint_init_tiny_mce(element_id) {
+  // TODO CHECK IF wp.editor is defined
+  if (typeof wp !== 'undefined' && typeof wp.editor !== 'undefined' && jQuery('#' + element_id).length) {
+    wp.editor.remove(element_id);
+    wp.editor.initialize(element_id, {
+      tinymce: {
+        wpautop: false,
+        toolbar1: 'formatselect alignjustify forecolor | bold italic underline strikethrough | bullist numlist | blockquote hr | alignleft aligncenter alignright | link unlink | pastetext removeformat | outdent indent | undo redo',
+        height: "480"
+      },
+      quicktags: true,
+      mediaButtons: true
+    });
+  }
+}
+function latepoint_init_reminder_form() {
+  latepoint_init_tiny_mce(jQuery('.os-reminder-form:last-child textarea').attr('id'));
+}
+function latepoint_filter_table($table, $filter_elem) {
+  var reset_page = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+  $filter_elem.addClass('os-loading');
+  var filter_params = $table.find('.os-table-filter').serialize();
+  var $table_w = $table.closest('.table-with-pagination-w');
+  if (reset_page) {
+    $table_w.find('select.pagination-page-select').val(1);
+  } else {
+    filter_params += '&page_number=' + $table_w.find('select.pagination-page-select').val();
+  }
+  var route = $table.data('route');
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route,
+    params: filter_params,
+    layout: 'none',
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(data) {
+      $filter_elem.removeClass('os-loading');
+      if (data.status === "success") {
+        $table.find('tbody').html(data.message);
+        if (data.total_pages && reset_page) {
+          var options = '';
+          for (var i = 1; i <= data.total_pages; i++) {
+            options += '<option>' + i + '</option>';
+          }
+          $table_w.find('select.pagination-page-select').html(options);
+        }
+        $table_w.find('.os-pagination-from').text(data.showing_from);
+        $table_w.find('.os-pagination-to').text(data.showing_to);
+        $table_w.find('.os-pagination-total').text(data.total_records);
+        latepoint_init_clickable_cells();
+      } else {
+        // console.log(data.message);
+      }
+    }
+  });
+}
+function latepoint_init_wizard_content() {
+  latepoint_init_input_masks(jQuery('.os-wizard-step-content'));
+}
+function latepoint_init_input_masks() {
+  var $scoped_element = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+  var $wrapper = $scoped_element ? $scoped_element : jQuery('body');
+  latepoint_mask_timefield($wrapper.find('.os-mask-time'));
+  $wrapper.find('.os-mask-phone').each(function () {
+    latepoint_mask_phone(jQuery(this));
+  });
+  latepoint_mask_money($wrapper.find('.os-mask-money'));
+  latepoint_mask_date($wrapper.find('.os-mask-date'));
+  latepoint_mask_minutes($wrapper.find('.os-mask-minutes'));
+  $wrapper.trigger('latepoint:initInputMasks');
+}
+"use strict";
+
+/*
+ * Copyright (c) 2023 LatePoint LLC. All rights reserved.
+ */
+
+function latepoint_init_daily_bookings_chart() {
+  if (typeof Chart === 'undefined' || !jQuery('#chartDailyBookings').length) return;
+  var $dailyBookingsChart = jQuery('#chartDailyBookings');
+  var dailyBookingsLabels = $dailyBookingsChart.data('chart-labels').toString().split(',');
+  var dailyBookingsValues = $dailyBookingsChart.data('chart-values').toString().split(',').map(Number);
+  var dailyBookingsChartMax = Math.max.apply(Math, dailyBookingsValues);
+  // calculate max Y to have space for a tooltip
+  var canvasHeight = 200;
+  var spaceForTooltip = 160;
+  var maxValue = dailyBookingsChartMax + spaceForTooltip * dailyBookingsChartMax / canvasHeight + 1;
+  var fontFamily = latepoint_helper.font_family;
+  Chart.Tooltip.positioners.top = function (items) {
+    var pos = Chart.Tooltip.positioners.average(items);
+
+    // Happens when nothing is found
+    if (pos === false) {
+      return false;
+    }
+    var chart = this.chart;
+    return {
+      x: pos.x,
+      y: chart.chartArea.top,
+      xAlign: 'center',
+      yAlign: 'bottom'
+    };
+  };
+  Chart.defaults.defaultFontFamily = fontFamily;
+  Chart.defaults.defaultFontSize = 18;
+  Chart.defaults.defaultFontStyle = '400';
+  Chart.defaults.plugins.tooltip.titleFont = {
+    family: fontFamily,
+    size: 14,
+    color: 'rgba(255,255,255,0.6)',
+    style: 'normal',
+    weight: 400
+  };
+  Chart.defaults.plugins.tooltip.titleFont = {
+    family: fontFamily,
+    size: 14,
+    weight: 400
+  };
+  Chart.defaults.plugins.tooltip.titleColor = 'rgba(255,255,255,0.6)';
+  Chart.defaults.plugins.tooltip.backgroundColor = '#000';
+  Chart.defaults.plugins.tooltip.titleMarginBottom = 5;
+  Chart.defaults.plugins.tooltip.bodyFont = {
+    family: fontFamily,
+    size: 24,
+    weight: 700,
+    lineHeight: 0.8
+  };
+  Chart.defaults.plugins.tooltip.displayColors = false;
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.yAlign = 'bottom';
+  Chart.defaults.plugins.tooltip.xAlign = 'center';
+  Chart.defaults.plugins.tooltip.cornerRadius = 4;
+  Chart.defaults.plugins.tooltip.caretSize = 5;
+  Chart.defaults.plugins.tooltip.position = 'top';
+  var ctx = $dailyBookingsChart[0].getContext("2d");
+  var gradientStroke = ctx.createLinearGradient(500, 0, 100, 0);
+  gradientStroke.addColorStop(0, '#1d7bff');
+  gradientStroke.addColorStop(1, '#1d7bff');
+  var gradientFill = ctx.createLinearGradient(0, 0, 0, 140);
+  gradientFill.addColorStop(0, 'rgb(206,224,255, 0.4)');
+  gradientFill.addColorStop(1, 'rgba(206,224,255,0)');
+
+  // line chart data
+  var chartDailyBookingsData = {
+    labels: dailyBookingsLabels,
+    datasets: [{
+      backgroundColor: gradientFill,
+      borderColor: gradientStroke,
+      label: "",
+      fill: true,
+      lineTension: 0.1,
+      borderWidth: 2,
+      borderCapStyle: 'butt',
+      borderDash: [],
+      borderDashOffset: 0.0,
+      borderJoinStyle: 'miter',
+      pointBorderColor: "#fff",
+      pointBackgroundColor: "#1D7BFF",
+      pointRadius: 3,
+      pointBorderWidth: 2,
+      pointHoverRadius: 6,
+      pointHoverBorderWidth: 4,
+      pointHoverBackgroundColor: "#1D7BFF",
+      pointHoverBorderColor: "#aecdff",
+      pointHitRadius: 20,
+      spanGaps: false,
+      data: dailyBookingsValues
+    }]
+  };
+  var options = {
+    animation: false,
+    layout: {
+      padding: {
+        top: 0
+      }
+    },
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    maintainAspectRatio: false,
+    plugins: {
+      verticalLiner: {},
+      legend: {
+        display: false
+      }
+    },
+    scales: {
+      x: {
+        display: true,
+        ticks: {
+          maxRotation: 0,
+          fontSize: '10',
+          fontColor: '#000',
+          callback: function callback(value, index, ticks) {
+            if (ticks.length) {
+              return (index + 2) % Math.round(ticks.length / 8) ? '' : this.getLabelForValue(value);
+            } else {
+              return this.getLabelForValue(value);
+            }
+          }
+        },
+        grid: {
+          borderDash: [1, 5],
+          color: 'rgba(0,0,0,0.35)',
+          zeroLineColor: 'rgba(0,0,0,0.15)'
+        }
+      },
+      y: {
+        max: maxValue,
+        grid: {
+          color: 'rgba(0,0,0,0.05)',
+          zeroLineColor: 'rgba(0,0,0,0.05)'
+        },
+        display: false,
+        ticks: {
+          beginAtZero: true,
+          fontSize: '10',
+          fontColor: '#000'
+        }
+      }
+    }
+  };
+  var plugin = {
+    id: 'verticalLiner',
+    afterInit: function afterInit(chart, args, opts) {
+      chart.verticalLiner = {};
+    },
+    afterEvent: function afterEvent(chart, args, options) {
+      var inChartArea = args.inChartArea;
+      chart.verticalLiner = {
+        draw: inChartArea
+      };
+    },
+    beforeTooltipDraw: function beforeTooltipDraw(chart, args, options) {
+      var draw = chart.verticalLiner.draw;
+      if (!draw) return;
+      var ctx = chart.ctx;
+      var _chart$chartArea = chart.chartArea,
+        top = _chart$chartArea.top,
+        bottom = _chart$chartArea.bottom;
+      var tooltip = args.tooltip;
+      var x = tooltip === null || tooltip === void 0 ? void 0 : tooltip.caretX;
+      if (!x) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  // line chart init
+  var chartDailyBookings = new Chart($dailyBookingsChart, {
+    type: 'line',
+    data: chartDailyBookingsData,
+    options: options,
+    plugins: [plugin]
+  });
+}
+function latepoint_init_customer_donut_chart() {
+  if (typeof Chart !== 'undefined' && jQuery('.os-customer-donut-chart').length) {
+    var fontFamily = latepoint_helper.font_family;
+    // set defaults
+    Chart.defaults.defaultFontFamily = fontFamily;
+    Chart.defaults.defaultFontSize = 16;
+    Chart.defaults.defaultFontStyle = '400';
+    Chart.defaults.plugins.tooltip.titleFont = {
+      family: fontFamily,
+      size: 14,
+      weight: 400
+    };
+    Chart.defaults.plugins.tooltip.titleColor = 'rgba(255,255,255,0.6)';
+    Chart.defaults.plugins.tooltip.backgroundColor = '#000';
+    Chart.defaults.plugins.tooltip.titleMarginBottom = 1;
+    Chart.defaults.plugins.tooltip.bodyFont = {
+      family: fontFamily,
+      size: 18,
+      weight: 500
+    };
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.plugins.tooltip.padding = 5;
+    Chart.defaults.plugins.tooltip.yAlign = 'bottom';
+    Chart.defaults.plugins.tooltip.xAlign = 'center';
+    Chart.defaults.plugins.tooltip.cornerRadius = 4;
+    Chart.defaults.plugins.tooltip.intersect = false;
+    jQuery('.os-customer-donut-chart').each(function (index) {
+      var chart_colors = jQuery(this).data('chart-colors').toString().split(',');
+      var chart_labels = jQuery(this).data('chart-labels').toString().split(',');
+      var chart_values = jQuery(this).data('chart-values').toString().split(',').map(Number);
+      var $chart_canvas = jQuery(this);
+      var chartDonut = new Chart($chart_canvas, {
+        type: 'doughnut',
+        data: {
+          labels: chart_labels,
+          datasets: [{
+            data: chart_values,
+            backgroundColor: chart_colors,
+            hoverBackgroundColor: chart_colors,
+            borderWidth: 0,
+            hoverBorderColor: 'transparent'
+          }]
+        },
+        options: {
+          layout: {
+            padding: {
+              top: 10,
+              bottom: 10,
+              left: 10,
+              right: 10
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: function title(tooltipItem) {
+                  return tooltipItem[0].label;
+                },
+                label: function label(tooltipItem) {
+                  return tooltipItem.parsed;
+                }
+              }
+            }
+          },
+          animation: {
+            animateRotate: false
+          },
+          cutout: "90%",
+          responsive: false,
+          maintainAspectRatio: true
+        }
+      });
+    });
+  }
+}
+function latepoint_init_donut_charts() {
+  if (typeof Chart !== 'undefined' && jQuery('.os-donut-chart').length) {
+    var fontFamily = latepoint_helper.font_family;
+    // set defaults
+    Chart.defaults.defaultFontFamily = fontFamily;
+    Chart.defaults.defaultFontSize = 18;
+    Chart.defaults.defaultFontStyle = '400';
+    Chart.defaults.plugins.tooltip.titleFont.family = fontFamily;
+    Chart.defaults.plugins.tooltip.titleFont.size = 14;
+    Chart.defaults.plugins.tooltip.titleColor = 'rgba(255,255,255,0.6)';
+    Chart.defaults.plugins.tooltip.backgroundColor = '#000';
+    Chart.defaults.plugins.tooltip.titleFont.style = '400';
+    Chart.defaults.plugins.tooltip.titleMarginBottom = 1;
+    Chart.defaults.plugins.tooltip.bodyFont.family = fontFamily;
+    Chart.defaults.plugins.tooltip.bodyFont.size = 24;
+    Chart.defaults.plugins.tooltip.bodyFont.style = '500';
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.plugins.tooltip.padding.x = 10;
+    Chart.defaults.plugins.tooltip.padding.y = 8;
+    Chart.defaults.plugins.tooltip.yAlign = 'bottom';
+    Chart.defaults.plugins.tooltip.xAlign = 'center';
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.intersect = false;
+    jQuery('.os-donut-chart').each(function (index) {
+      var chart_colors = jQuery(this).data('chart-colors').toString().split(',');
+      var chart_labels = jQuery(this).data('chart-labels').toString().split(',');
+      var chart_values = jQuery(this).data('chart-values').toString().split(',').map(Number);
+      var $chart_canvas = jQuery(this);
+      var chartDonut = new Chart($chart_canvas, {
+        type: 'doughnut',
+        data: {
+          labels: chart_labels,
+          datasets: [{
+            data: chart_values,
+            backgroundColor: chart_colors,
+            hoverBackgroundColor: chart_colors,
+            borderWidth: 0,
+            hoverBorderColor: 'transparent'
+          }]
+        },
+        options: {
+          layout: {
+            padding: {
+              top: 40
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: function title(tooltipItem, data) {
+                  return data['labels'][tooltipItem[0]['index']];
+                },
+                label: function label(tooltipItem, data) {
+                  return data['datasets'][0]['data'][tooltipItem['index']];
+                }
+              }
+            }
+          },
+          animation: {
+            animateScale: true
+          },
+          cutoutPercentage: 96,
+          responsive: false,
+          maintainAspectRatio: true
+        }
+      });
+    });
+  }
+}
+function latepoint_init_circles_charts() {
+  jQuery('.circle-chart').each(function (index) {
+    var chart_elem_id = jQuery(this).prop('id');
+    var max_value = jQuery(this).data('max-value');
+    var chart_value = jQuery(this).data('chart-value');
+    var chart_color = jQuery(this).data('chart-color');
+    var chart_color_fade = jQuery(this).data('chart-color-fade');
+    var myCircle = Circles.create({
+      id: chart_elem_id,
+      radius: 25,
+      value: chart_value,
+      maxValue: max_value,
+      width: 2,
+      text: function text(value) {
+        return Math.round(value);
+      },
+      colors: [chart_color, chart_color_fade],
+      duration: 200,
+      wrpClass: 'circles-wrp',
+      textClass: 'circles-text',
+      valueStrokeClass: 'circles-valueStroke',
+      maxValueStrokeClass: 'circles-maxValueStroke',
+      styleWrapper: true,
+      styleText: true
+    });
+  });
+}
+"use strict";
+
+/*
+ * Copyright (c) 2023 LatePoint LLC. All rights reserved.
+ */
+
+function latepoint_check_horizontal_calendar_scroll() {
+  if (jQuery('.daily-availability-calendar.horizontal-calendar').length) {
+    if (jQuery('.daily-availability-calendar.horizontal-calendar').width() < 700) {
+      jQuery('.daily-availability-calendar.horizontal-calendar').scrollLeft(jQuery('.os-day.selected').index() * jQuery('.os-day.selected').width());
+    }
+  }
+}
+function latepoint_init_calendars() {
+  latepoint_check_horizontal_calendar_scroll();
+  jQuery('.os-calendar-settings-extra .latecheckbox').lateCheckbox();
+  jQuery('.calendar-settings-toggler').on('click', function () {
+    jQuery('.os-calendar-settings-form').toggleClass('show-extra-settings');
+    return false;
+  });
+  jQuery('.os-calendar-settings-form').on('change', 'select[name="calendar_settings[view]"]', function () {
+    jQuery(this).closest('.calendar-wrapper').attr('data-view', jQuery(this).val());
+  });
+  jQuery('.os-calendar-settings-form').on('change', 'select, input, .latecheckbox ', function () {
+    latepoint_reload_calendar_view();
+  });
+  jQuery('.calendar-view-wrapper').on('click', '.weekly-calendar-agent-selector', function () {
+    jQuery('.weekly-calendar-agent-selector.selected').removeClass('selected');
+    jQuery(this).addClass('selected');
+    jQuery('.os-calendar-settings-form input[name="calendar_settings[selected_agent_id]"]').val(jQuery(this).data('agent-id'));
+    jQuery('.agent-weekly-calendar.selected').removeClass('selected');
+    jQuery('.agent-weekly-calendar[data-agent-id="' + jQuery(this).data('agent-id') + '"]').addClass('selected');
+    return false;
+  });
+  jQuery('.calendar-view-wrapper').on('click', '.daily-calendar-action-navigation-btn', function () {
+    jQuery(this).addClass('os-loading');
+    jQuery('input[name="calendar_settings[target_date_string]"]').val(jQuery(this).data('target-date')).trigger('change');
+    return false;
+  });
+  jQuery('.calendar-view-wrapper').on('click', '.daily-availability-calendar .os-day', function () {
+    jQuery('.os-monthly-calendar-days-w .os-day.selected').removeClass('selected');
+    jQuery(this).addClass('selected');
+    jQuery('input[name="calendar_settings[target_date_string]"]').val(jQuery(this).data('date')).trigger('change');
+    return false;
+  });
+  jQuery('.os-calendar-today-btn').on('click', function () {
+    jQuery(this).addClass('os-loading');
+    jQuery('input[name="calendar_settings[target_date_string]"]').val(jQuery(this).data('target-date')).trigger('change');
+    return false;
+  });
+  jQuery('.os-calendar-prev-btn').on('click', function () {
+    jQuery(this).addClass('os-loading');
+    jQuery('input[name="calendar_settings[target_date_string]"]').val(jQuery('input[name="prev_target_date"]').val()).trigger('change');
+    return false;
+  });
+  jQuery('.os-calendar-next-btn').on('click', function () {
+    jQuery(this).addClass('os-loading');
+    jQuery('input[name="calendar_settings[target_date_string]"]').val(jQuery('input[name="next_target_date"]').val()).trigger('change');
+    return false;
+  });
+}
+function latepoint_reload_calendar_view() {
+  var $calendar_wrapper = jQuery('.calendar-view-wrapper');
+  if (!$calendar_wrapper.length) return;
+  $calendar_wrapper.addClass('os-loading');
+  var calendar_settings = new FormData(jQuery('form.os-calendar-settings-form')[0]);
+  var data = new FormData();
+  data.append('params', latepoint_formdata_to_url_encoded_string(calendar_settings));
+  data.append('action', latepoint_helper.route_action);
+  data.append('route_name', $calendar_wrapper.data('route'));
+  data.append('return_format', 'json');
+  jQuery.ajax({
+    type: "post",
+    dataType: "json",
+    processData: false,
+    contentType: false,
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      if (response.status === "success") {
+        $calendar_wrapper.html(response.message).removeClass('os-loading');
+        jQuery('.os-calendar-today-btn, .os-calendar-prev-btn, .os-calendar-next-btn').removeClass('os-loading');
+        jQuery('.os-current-month-label .current-month').text(response.top_date_label);
+        latepoint_check_horizontal_calendar_scroll();
+      }
+    }
+  });
+}
+"use strict";
+
+/*
+ * Copyright (c) 2022 LatePoint LLC. All rights reserved.
+ */
+
+function latepoint_process_updated() {
+  location.reload();
+}
+function latepoint_process_action_removed($elem) {
+  $elem.closest('.os-form-block').remove();
+}
+function latepoint_replace_process_condition_element($trigger, params, $target) {
+  var callback = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
+  var route_name = $trigger.data('route');
+  var data = {
+    action: latepoint_helper.route_action,
+    route_name: route_name,
+    params: params,
+    return_format: 'json'
+  };
+  jQuery.ajax({
+    type: 'post',
+    dataType: "json",
+    url: latepoint_helper.ajaxurl,
+    data: data,
+    success: function success(response) {
+      if (response.status === latepoint_helper.response_status.success) {
+        $target.html(response.message);
+        latepoint_init_process_conditions_form();
+        if (typeof callback === 'function') {
+          callback();
+        }
+      } else {
+        alert("Error!");
+      }
+    }
+  });
+}
+function latepoint_init_process_forms() {
+  latepoint_init_process_conditions_form();
+  jQuery('.os-processes-w').on('click', '.os-run-process', function () {
+    var $btn = jQuery(this);
+    $btn.addClass('os-loading');
+    var $process_form = $btn.closest('.os-process-form');
+    // remove previously assigned class on other forms
+    jQuery('.os-process-form.prepared-to-run').removeClass('prepared-to-run');
+    // add class so we know which form is about to be processed
+    $process_form.addClass('prepared-to-run');
+    var form_data = new FormData($process_form[0]);
+    form_data.set('process_event_type', $process_form.closest('.os-process-form').find('.process-event-type-selector').val());
+    var data = new FormData();
+    data.append('params', latepoint_formdata_to_url_encoded_string(form_data));
+    data.append('action', latepoint_helper.route_action);
+    data.append('route_name', $btn.data('route'));
+    data.append('return_format', 'json');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      processData: false,
+      contentType: false,
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        latepoint_show_data_in_lightbox(data.message, 'width-800');
+        latepoint_init_process_test_form();
+        $btn.removeClass('os-loading');
+      }
+    });
+    return false;
+  });
+  jQuery('.os-processes-w').find('.process-action-form').each(function (index) {
+    latepoint_init_process_action_form(jQuery(this));
+  });
+  jQuery('.os-processes-w').on('click', '.pe-remove-condition', function (event) {
+    if (jQuery(event.currentTarget).closest('.pe-conditions').find('.pe-condition').length > 1) {
+      jQuery(event.currentTarget).closest('.pe-condition').remove();
+    } else {
+      alert('You need to have at least one condition if your custom field is set to be conditional.');
+    }
+    return false;
+  });
+  jQuery('.os-processes-w').on('change', 'select.process-condition-operator-selector', function (event) {
+    var $select = jQuery(event.currentTarget);
+    if ($select.val() == 'changed' || $select.val() == 'not_changed') {
+      $select.closest('.pe-condition').find('.process-condition-values-w').hide();
+    } else {
+      $select.closest('.pe-condition').find('.process-condition-values-w').show();
+    }
+  });
+  jQuery('.os-processes-w').on('change', 'select.process-event-type-selector', function (event) {
+    var $select = jQuery(event.currentTarget);
+    latepoint_replace_process_condition_element($select, {
+      event_type: $select.val()
+    }, $select.closest('.os-form-block').find('.process-event-condition-wrapper'));
+  });
+  jQuery('.os-processes-w').on('change', 'select.process-condition-object-selector', function (event) {
+    var $select = jQuery(event.currentTarget);
+    var $property_selector = $select.closest('.pe-condition').find('.process-condition-properties-w select');
+    latepoint_replace_process_condition_element($select, {
+      object_code: $select.val()
+    }, $property_selector, function () {
+      $property_selector.trigger('change');
+    });
+  });
+  jQuery('.os-processes-w').on('change', 'select.process-condition-property-selector', function (event) {
+    var $select = jQuery(event.currentTarget);
+    var $operator_selector = $select.closest('.pe-condition').find('.process-condition-operators-w select');
+    latepoint_replace_process_condition_element($select, {
+      property: $select.val()
+    }, $operator_selector, function () {
+      $operator_selector.trigger('change');
+    });
+  });
+  jQuery('.os-processes-w').on('change', 'select.process-condition-operator-selector', function (event) {
+    var $select = jQuery(event.currentTarget);
+    latepoint_replace_process_condition_element($select, {
+      property: $select.closest('.pe-condition').find('select.process-condition-property-selector').val(),
+      trigger_condition_id: $select.closest('.pe-condition').data('condition-id'),
+      operator: $select.val()
+    }, $select.closest('.pe-condition').find('.process-condition-values-w'));
+  });
+}
+function latepoint_init_process_conditions_form() {
+  jQuery('.os-late-select').lateSelect();
+}
+function latepoint_add_process_condition($btn, response) {
+  $btn.closest('.pe-condition').after(response.message);
+  latepoint_init_process_conditions_form();
+}
+function latepoint_init_added_process_action_form($trigger) {
+  var $action_form = $trigger.prev('.process-action-form');
+  $action_form.addClass('is-editing');
+  latepoint_init_process_action_form($action_form);
+}
+function latepoint_init_process_test_form() {
+  jQuery('.latepoint-run-process-btn').on('click', function () {
+    var $btn = jQuery(this);
+    if ($btn.hasClass('os-loading')) return false;
+    $btn.addClass('os-loading');
+    var $test_action_form = jQuery('.latepoint-lightbox-content .action-settings-wrapper');
+    var form_data = new FormData(jQuery('.os-process-form.prepared-to-run')[0]);
+
+    // set data sources
+    jQuery('.process-test-data-source-selector').each(function () {
+      form_data.set(jQuery(this).prop('name'), jQuery(this).val());
+    });
+
+    // set selected actions
+    jQuery('.process-test-data-source-selector').each(function () {
+      form_data.set(jQuery(this).prop('name'), jQuery(this).val());
+    });
+    var action_ids_to_run = [];
+    jQuery('.action-to-run input[type="hidden"]').each(function () {
+      if (jQuery(this).val() == 'on') action_ids_to_run.push(jQuery(this).closest('.action-to-run').data('id'));
+    });
+    form_data.set('action_ids', action_ids_to_run.join(','));
+    var data = new FormData();
+    data.append('params', latepoint_formdata_to_url_encoded_string(form_data));
+    data.append('action', latepoint_helper.route_action);
+    data.append('route_name', $btn.data('route'));
+    data.append('return_format', 'json');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      processData: false,
+      contentType: false,
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $btn.removeClass('os-loading');
+        if (data.status == 'success') {
+          latepoint_add_notification(data.message);
+        } else {
+          latepoint_add_notification(data.message, 'error');
+        }
+      }
+    });
+  });
+  jQuery('.process-action-test-data-source-selector').on('change', function () {
+    // TODO add call to server to check if selected data sources matches conditions of this process
+  });
+}
+function latepoint_init_process_action_test_form() {
+  latepoint_init_json_view(jQuery('.action-preview-wrapper.type-trigger_webhook pre'));
+  jQuery('.latepoint-run-action-btn').on('click', function () {
+    var $btn = jQuery(this);
+    if ($btn.hasClass('os-loading')) return false;
+    $btn.addClass('os-loading');
+    var $test_action_form = jQuery('.latepoint-lightbox-content .action-settings-wrapper');
+    var action_data = new FormData();
+    action_data.append('params', $test_action_form.find('select, textarea, input').serialize());
+    action_data.append('action', latepoint_helper.route_action);
+    action_data.append('route_name', $btn.data('route'));
+    action_data.append('return_format', 'json');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      processData: false,
+      contentType: false,
+      url: latepoint_helper.ajaxurl,
+      data: action_data,
+      success: function success(data) {
+        $btn.removeClass('os-loading');
+        if (data.status == 'success') {
+          latepoint_add_notification(data.message);
+        } else {
+          latepoint_add_notification(data.message, 'error');
+        }
+      }
+    });
+  });
+  jQuery('.process-action-test-data-source-selector').on('change', function () {
+    var $select = jQuery(this);
+    jQuery('.action-preview-wrapper').addClass('os-loading');
+    var $test_action_form = $select.closest('.action-settings-wrapper');
+    var action_data = new FormData();
+    action_data.append('params', $test_action_form.find('select, textarea, input').serialize());
+    action_data.append('action', latepoint_helper.route_action);
+    action_data.append('route_name', $select.data('route'));
+    action_data.append('return_format', 'json');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      processData: false,
+      contentType: false,
+      url: latepoint_helper.ajaxurl,
+      data: action_data,
+      success: function success(data) {
+        jQuery('.action-preview-wrapper').html(data.message).removeClass('os-loading');
+        latepoint_init_json_view(jQuery('.action-preview-wrapper.type-trigger_webhook pre'));
+      }
+    });
+  });
+}
+function latepoint_init_process_action_form($action_form) {
+  $action_form.on('click', '.os-run-process-action', function () {
+    var $btn = jQuery(this);
+    $btn.addClass('os-loading');
+    var $action_form = $btn.closest('.process-action-form');
+    if (window.tinyMCE !== undefined) window.tinyMCE.triggerSave();
+    var action_data = new FormData();
+    var params = latepoint_create_form_data_from_non_form_element($action_form);
+    params.set('process_event_type', $action_form.closest('.os-process-form').find('.process-event-type-selector').val());
+    action_data.append('params', latepoint_formdata_to_url_encoded_string(params));
+    action_data.append('action', latepoint_helper.route_action);
+    action_data.append('route_name', $btn.data('route'));
+    action_data.append('return_format', 'json');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      processData: false,
+      contentType: false,
+      url: latepoint_helper.ajaxurl,
+      data: action_data,
+      success: function success(data) {
+        latepoint_show_data_in_lightbox(data.message, 'width-800');
+        latepoint_init_process_action_test_form();
+        $btn.removeClass('os-loading');
+      }
+    });
+    return false;
+  });
+  $action_form.on('click', '.process-action-heading', function () {
+    jQuery(this).closest('.process-action-form').toggleClass('is-editing');
+    return false;
+  });
+  $action_form.on('change', '.process-action-type', function () {
+    jQuery(this).closest('.process-action-form').find('.process-action-name').text(jQuery(this).find('option:selected').text());
+  });
+  $action_form.find('textarea.os-wp-editor-textarea').each(function (index) {
+    latepoint_init_tiny_mce(jQuery(this).attr('id'));
+  });
+  $action_form.on('click', '.os-remove-process-action', function () {
+    if (confirm(jQuery(this).data('os-prompt'))) {
+      jQuery(this).closest('.process-action-form').remove();
+    }
+    return false;
+  });
+  $action_form.on('change', '.process-action-type', function () {
+    var $select = jQuery(this);
+    var action_type = $select.val();
+    var action_id = $select.data('action-id');
+    var route_name = $select.data('route');
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route_name,
+      params: {
+        action_type: action_type,
+        action_id: action_id
+      },
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $select.closest('.process-action-content').find('.process-action-settings').html(data.message);
+        latepoint_init_input_masks($select.closest('.process-action-form'));
+      }
+    });
+    return false;
+  });
+}
+"use strict";
+
+/*
+ * Copyright (c) 2022 LatePoint LLC. All rights reserved.
+ */
+
+// @codekit-prepend "bin/time.js";
+// @codekit-prepend "bin/lateselect.js";
+// @codekit-prepend "bin/latecheckbox.js";
+// @codekit-prepend "bin/actions.js";
+// @codekit-prepend "bin/notifications.js";
+// @codekit-prepend "bin/shared.js";
+// @codekit-prepend "bin/admin/updates.js";
+// @codekit-prepend "bin/admin/main.js";
+// @codekit-prepend "bin/admin/_chart.js";
+// @codekit-prepend "bin/admin/_calendar.js";
+// @codekit-prepend "bin/admin/_processes.js";
+
+// DOCUMENT READY
+jQuery(document).ready(function ($) {
+  // DASHBOARD
+  latepoint_init_calendars();
+  latepoint_init_circles_charts();
+  latepoint_init_donut_charts();
+  latepoint_init_daily_bookings_chart();
+  latepoint_init_element_togglers();
+  latepoint_init_daterangepicker(jQuery('.os-date-range-picker'));
+  latepoint_init_monthly_view();
+  latepoint_init_form_blocks();
+  latepoint_init_reminders_form();
+  latepoint_init_coupons_form();
+  latepoint_init_copy_on_click_elements();
+  latepoint_init_side_menu();
+  latepoint_init_color_picker();
+  latepoint_init_clickable_cells();
+  latepoint_init_input_masks();
+  latepoint_init_process_forms();
+  latepoint_init_sticky_side_menu();
+  latepoint_init_sortable_columns();
+  latepoint_init_accordions();
+  latepoint_init_default_form_fields_settings();
+  jQuery(document).on({
+    mouseenter: function mouseenter() {
+      var $elem = jQuery(this);
+      var offset = $elem.offset();
+      jQuery('body > .late-tooltip').remove();
+      var $popup = jQuery('<div/>').addClass('late-tooltip').text($elem.data('late-tooltip')).appendTo(jQuery('body'));
+      $popup.css('top', offset.top - 2);
+      $popup.css('left', offset.left + $elem.outerWidth() / 2);
+      return false;
+    },
+    mouseleave: function mouseleave() {
+      jQuery('body > .late-tooltip').remove();
+    }
+  }, "[data-late-tooltip]");
+  jQuery('body').on('click', '.booking-activity-log-panel-close', function () {
+    jQuery('.booking-activity-log-panel-w').remove();
+    return false;
+  });
+  jQuery('#settings_list_of_phone_countries').on('change', function () {
+    if (jQuery(this).val() == latepoint_helper.value_all) {
+      jQuery('.select-phone-countries-wrapper').hide();
+    } else {
+      jQuery('.select-phone-countries-wrapper').show();
+    }
+  });
+  jQuery('.os-select-all-toggler').on('change', function () {
+    var $connection_wrappers = jQuery(this).closest('.white-box').find('.os-complex-connections-selector .connection');
+    if (jQuery(this).is(':checked')) {
+      latepoint_complex_selector_select($connection_wrappers);
+    } else {
+      latepoint_complex_selector_deselect($connection_wrappers);
+    }
+    return false;
+  });
+  jQuery('.os-main-location-selector').on('change', function () {
+    var route = jQuery(this).data('route');
+    var params = 'id=' + jQuery(this).val();
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route,
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery('.latepoint-content-w').addClass('os-loading');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        location.reload();
+      }
+    });
+  });
+  jQuery('.os-service-durations-w').on('click', '.os-remove-duration', function () {
+    jQuery(this).closest('.duration-box').slideUp(300, function () {
+      jQuery(this).remove();
+    });
+    return false;
+  });
+  jQuery('.menu-color-toggler').on('click', function () {
+    jQuery('.latepoint-side-menu-w').toggleClass('dark');
+    return false;
+  });
+  jQuery('.latepoint-mobile-top-menu-trigger').on('click', function () {
+    jQuery(this).closest('.latepoint-all-wrapper').toggleClass('os-show-mobile-menu');
+    if (jQuery(this).closest('.latepoint-all-wrapper').hasClass('os-show-mobile-menu')) {
+      jQuery('.latepoint-side-menu-w ul.side-menu > li.has-children > a').on('click', function () {
+        jQuery(this).closest('li').toggleClass('menu-item-sub-open-mobile');
+        return false;
+      });
+    } else {
+      jQuery('.latepoint-side-menu-w ul.side-menu > li.has-children > a').off('click');
+    }
+    return false;
+  });
+  jQuery('.latepoint-mobile-top-search-trigger-cancel').on('click', function () {
+    jQuery(this).closest('.latepoint-all-wrapper').removeClass('os-show-mobile-search');
+    return false;
+  });
+  jQuery('.latepoint-mobile-top-search-trigger').on('click', function () {
+    jQuery(this).closest('.latepoint-all-wrapper').toggleClass('os-show-mobile-search');
+    if (jQuery(this).closest('.latepoint-all-wrapper').hasClass('os-show-mobile-search')) {
+      jQuery('.latepoint-top-search').focus();
+    }
+    return false;
+  });
+  jQuery('.latepoint-top-bar-w').on('click', '.top-user-info-toggler', function () {
+    jQuery('.latepoint-user-info-dropdown').toggleClass('os-visible');
+    return false;
+  });
+  jQuery('.latepoint-content').on('click', '.mobile-calendar-actions-trigger', function () {
+    jQuery(this).closest('.calendar-mobile-controls').toggleClass('os-show-actions');
+    return false;
+  });
+  jQuery('.latepoint-content').on('click', '.os-widget-header-actions-trigger', function () {
+    jQuery(this).closest('.os-widget-header').toggleClass('os-show-actions');
+    return false;
+  });
+  jQuery('.latepoint-content').on('click', '.mobile-table-actions-trigger', function () {
+    jQuery(this).closest('.os-pagination-w').toggleClass('os-show-actions');
+    return false;
+  });
+  jQuery('.download-csv-with-filters').on('click', function () {
+    var filter_params = jQuery(this).closest('.table-with-pagination-w').find('.os-table-filter').serialize();
+    filter_params += '&download=csv';
+    jQuery(this).attr('href', this.href + '&' + filter_params);
+  });
+  jQuery('select.pagination-page-select').on('change', function () {
+    latepoint_filter_table(jQuery(this).closest('.table-with-pagination-w').find('table'), jQuery(this).closest('.pagination-page-select-w'), false);
+  });
+  jQuery('select.os-table-filter').on('change', function () {
+    latepoint_filter_table(jQuery(this).closest('table'), jQuery(this).closest('.os-form-group'));
+  });
+  jQuery('input.os-table-filter').on('keyup', function () {
+    latepoint_filter_table(jQuery(this).closest('table'), jQuery(this).closest('.os-form-group'));
+  });
+  jQuery('.customize-connection-btn').on('click', function () {
+    jQuery(this).closest('.connection').toggleClass('show-customize-box');
+    return false;
+  });
+  jQuery('.connection-children-list').on('click', 'li', function () {
+    if (jQuery(this).hasClass('active')) {
+      jQuery(this).removeClass('active');
+      jQuery(this).find('input.connection-child-is-connected').val('no');
+    } else {
+      jQuery(this).addClass('active');
+      jQuery(this).find('input.connection-child-is-connected').val('yes');
+    }
+    latepoint_count_active_connections(jQuery(this).closest('.connection'));
+    return false;
+  });
+  jQuery('.display-toggler-control').on('change', function () {
+    var group = jQuery(this).data('toggler-group');
+    var key = jQuery(this).val();
+    jQuery('.display-toggler-target[data-toggler-group="' + group + '"]').hide();
+    jQuery('.display-toggler-target[data-toggler-group="' + group + '"][data-toggler-key="' + key + '"]').show();
+    return false;
+  });
+  jQuery('.add-item-category-trigger').on('click', function () {
+    jQuery('.add-item-category-box').toggle();
+    jQuery('.os-new-item-category-form-w').toggle();
+    return false;
+  });
+  jQuery('.latepoint-top-search').on('keyup', function (event) {
+    var $wrapper = jQuery(this).closest('.latepoint-top-search-w');
+    $wrapper.addClass('os-loading');
+    var query = jQuery(this).val();
+    if (event.keyCode == 27) {
+      $wrapper.removeClass('typing');
+      jQuery('.latepoint-top-search-results-w').html('');
+      jQuery(this).val('');
+      $wrapper.removeClass('os-loading');
+      return;
+    }
+    if (query == '') {
+      $wrapper.removeClass('typing');
+      jQuery('.latepoint-top-search-results-w').html('');
+      $wrapper.removeClass('os-loading');
+      return;
+    }
+    var route = jQuery(this).data('route');
+    var params = 'query=' + query;
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route,
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    $wrapper.addClass('typing');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        if (!$wrapper.hasClass('typing')) return;
+        $wrapper.removeClass('os-loading');
+        if (data.status === "success") {
+          jQuery('.latepoint-top-search-results-w').html(data.message);
+        } else {
+          // console.log(data.message);
+        }
+      }
+    });
+  });
+  jQuery('.add-custom-step-btn').on('click', function (e) {
+    var $step = jQuery('.empty-step-w .step-w').clone();
+    var step_name = 'step_' + latepoint_random_text(6);
+    var step_order_number = jQuery('.steps-ordering-w .step-w').length;
+    $step.find('input[name="step[name]"]').val(step_name);
+    $step.find('input[name="step[order_number]"]').val(step_order_number);
+    $step.addClass('editing').attr('data-step-name', step_name);
+    jQuery('.steps-ordering-w').append($step);
+    return false;
+  });
+  jQuery('.appointment-status-selector').on('click', function (e) {
+    e.stopPropagation();
+  });
+  jQuery('.latepoint-show-license-details').on('click', function (e) {
+    jQuery(this).closest('.active-license-info').find('.license-info-w').slideToggle(200);
+    return false;
+  });
+  jQuery('.aba-button-w').on('click', function (e) {
+    e.stopPropagation();
+    var confirm_message = jQuery(this).hasClass('aba-approve') ? latepoint_helper.approve_confirm : latepoint_helper.reject_confirm;
+    if (confirm(confirm_message)) {
+      var $box = jQuery(this).closest('.appointment-box-large');
+      $box.find('.appointment-status-selector select').val(jQuery(this).data('status')).change();
+    }
+    return false;
+  });
+  jQuery('.appointment-status-selector select').on('change', function (e) {
+    var $wrapper = jQuery(this).closest('.appointment-status-selector');
+    var route = $wrapper.data('route');
+    var nonce = $wrapper.data('wp-nonce');
+    var booking_id = $wrapper.data('booking-id');
+    var status = jQuery(this).val();
+    jQuery(this).closest('.appointment-box-large').attr('class', 'appointment-box-large status-' + status);
+    var params = 'id=' + booking_id + '&status=' + status + '&_wpnonce=' + nonce;
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: route,
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        if (data.status === "success") {
+          latepoint_add_notification(data.message);
+        } else {
+          latepoint_add_notification(data.message, 'error');
+          // console.log(data.message);
+        }
+      }
+    });
+  });
+
+  jQuery('body').on('click', '.open-template-variables-panel', function () {
+    jQuery('.latepoint-template-variables').toggleClass('is-visible');
+    return false;
+  });
+  jQuery('body').on('click', '.close-template-variables-panel', function () {
+    jQuery('.latepoint-template-variables').removeClass('is-visible');
+    return false;
+  });
+  jQuery('body').on('click', '.open-layout-template-variables-panel', function () {
+    jQuery('.latepoint-layout-template-variables').toggleClass('is-visible');
+    return false;
+  });
+  jQuery('body').on('click', '.close-layout-template-variables-panel', function () {
+    jQuery('.latepoint-layout-template-variables').removeClass('is-visible');
+    return false;
+  });
+  jQuery('body').on('click', '.os-notifications .os-notification-close', function () {
+    jQuery(this).closest('.item').remove();
+    return false;
+  });
+  jQuery('body').on('keyup', '.os-form-group .os-form-control', function () {
+    if (jQuery(this).val()) {
+      jQuery(this).closest('.os-form-group').addClass('has-value');
+    } else {
+      jQuery(this).closest('.os-form-group').removeClass('has-value');
+    }
+  });
+  jQuery('.os-wizard-setup-w, .latepoint-settings-w, .custom-schedule-wrapper').on('click', '.ws-head', function () {
+    var $schedule_wrapper = jQuery(this).closest('.weekday-schedule-w');
+    $schedule_wrapper.toggleClass('is-editing').removeClass('day-off');
+    $schedule_wrapper.find('.os-toggler').removeClass('off');
+    $schedule_wrapper.find('input.is-active').val(1);
+  });
+  jQuery('.latepoint').on('click', '.wizard-add-edit-item-trigger', function (e) {
+    jQuery(this).addClass('os-loading');
+    var add_item_route_name = jQuery(this).data('route');
+    var item_info = {};
+    if (jQuery(this).data('id')) {
+      item_info.id = jQuery(this).data('id');
+    }
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: add_item_route_name,
+      params: item_info,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        jQuery('.wizard-add-edit-item-trigger.os-loading').removeClass('os-loading');
+        if (data.status === "success") {
+          jQuery('.os-wizard-step-content-i').html(data.message);
+          jQuery('.os-wizard-setup-w').addClass('is-sub-editing');
+          jQuery('.os-wizard-footer').hide();
+          latepoint_init_wizard_content();
+        } else {
+          // console.log(data.message);
+        }
+      }
+    });
+  });
+
+  // WIZARD NEXT BUTTON CLICK LOGIC
+  jQuery('.latepoint').on('click', '.os-wizard-next-btn', function () {
+    var $next_btn = jQuery(this);
+    $next_btn.addClass('os-loading');
+    var current_step = jQuery('#wizard_current_step').val();
+    var params = 'current_step=' + current_step;
+    if (jQuery('.os-wizard-setup-w form.weekday-schedules-w').length) {
+      params += '&' + jQuery('.os-wizard-setup-w form.weekday-schedules-w .weekday-schedule-w:not(.day-off) input').serialize();
+    }
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: jQuery(this).data('route-name'),
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $next_btn.removeClass('os-loading');
+        if (data.status === "success") {
+          jQuery('#wizard_current_step').val(data.step_name);
+          jQuery('.os-wizard-setup-w').attr('class', 'os-wizard-setup-w step-' + data.step_name);
+          jQuery('.os-wizard-step-content').html(data.message);
+          latepoint_init_wizard_content();
+          if (data.show_prev_btn) {
+            jQuery('.os-wizard-prev-btn').show();
+          } else {
+            jQuery('.os-wizard-prev-btn').hide();
+          }
+          if (data.show_next_btn) {
+            jQuery('.os-wizard-next-btn').show();
+          } else {
+            jQuery('.os-wizard-next-btn').hide();
+          }
+          if (!data.show_next_btn && !data.show_prev_btn) {
+            jQuery('.os-wizard-footer').hide();
+          } else {
+            jQuery('.os-wizard-footer').show();
+          }
+        }
+      }
+    });
+    return false;
+  });
+
+  // WIZARD PREV BUTTON CLICK LOGIC
+  jQuery('.latepoint').on('click', '.os-wizard-prev-btn', function () {
+    var $prev_btn = jQuery(this);
+    $prev_btn.addClass('os-loading');
+    var current_step = jQuery('#wizard_current_step').val();
+    var params = 'current_step=' + current_step;
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: jQuery(this).data('route-name'),
+      params: params,
+      layout: 'none',
+      return_format: 'json'
+    };
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(data) {
+        $prev_btn.removeClass('os-loading');
+        if (data.status === "success") {
+          jQuery('#wizard_current_step').val(data.step_name);
+          jQuery('.os-wizard-setup-w').attr('class', 'os-wizard-setup-w step-' + data.step_name);
+          jQuery('.os-wizard-step-content').html(data.message);
+          latepoint_init_wizard_content();
+          if (data.show_prev_btn) {
+            jQuery('.os-wizard-prev-btn').show();
+          } else {
+            jQuery('.os-wizard-prev-btn').hide();
+          }
+          if (data.show_next_btn) {
+            jQuery('.os-wizard-next-btn').show();
+          } else {
+            jQuery('.os-wizard-next-btn').hide();
+          }
+          if (!data.show_next_btn && !data.show_prev_btn) {
+            jQuery('.os-wizard-footer').hide();
+          } else {
+            jQuery('.os-wizard-footer').show();
+          }
+        }
+      }
+    });
+    return false;
+  });
+  jQuery('.latepoint-content-w').on('change', '.os-widget .os-trigger-reload-widget', function () {
+    latepoint_reload_widget(jQuery(this).closest('.os-widget'));
+  });
+  jQuery('.latepoint-content-w').on('click', '.os-widget .timeline-type-toggle .timeline-type-option', function () {
+    jQuery(this).closest('.timeline-type-toggle').find('.timeline-type-option.active').removeClass('active');
+    jQuery(this).addClass('active');
+    jQuery('.timeline-and-availability-contents').removeClass('shows-appointments shows-availability').addClass('shows-' + jQuery(this).data('value'));
+    jQuery('#' + jQuery(this).closest('.timeline-type-toggle').data('value-holder-id')).val(jQuery(this).data('value'));
+  });
+  dragula([].slice.apply(document.querySelectorAll('.os-categories-ordering-w .os-category-children')), {
+    moves: function moves(el, container, handle) {
+      return handle.classList.contains('os-category-drag') || handle.classList.contains('os-category-item-drag');
+    }
+  }).on('drop', function (el) {
+    var $categories_wrapper = jQuery('.os-categories-ordering-w');
+    var category_datas = [];
+    var item_datas = [];
+    $categories_wrapper.find('.os-category-parent-w').each(function (index) {
+      var order_number = jQuery(this).index() + 1;
+      var parent_id = jQuery(this).parent().closest('.os-category-parent-w').data('id') || 0;
+      category_datas.push({
+        id: jQuery(this).data('id'),
+        order_number: order_number,
+        parent_id: parent_id
+      });
+    });
+    $categories_wrapper.find('.item-in-category-w').each(function (index) {
+      var item_order_number = jQuery(this).index() + 1;
+      var category_id = jQuery(this).closest('.os-category-parent-w').data('id') || 0;
+      item_datas.push({
+        id: jQuery(this).data('id'),
+        order_number: item_order_number,
+        category_id: category_id
+      });
+    });
+    latepoint_recalculate_items_count_in_category();
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: $categories_wrapper.data('category-order-update-route'),
+      params: {
+        category_datas: category_datas,
+        item_datas: item_datas
+      },
+      return_format: 'json'
+    };
+    $categories_wrapper.addClass('os-loading');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $categories_wrapper.removeClass('os-loading');
+        if (response.status === "success") {
+          // latepoint_add_notification(response.message);
+        } else {
+          alert(response.message);
+        }
+      }
+    });
+  });
+
+  // Universal re-ordering dragging for form blocks
+  dragula([jQuery('.os-draggable-form-blocks')[0]], {
+    moves: function moves(el, container, handle) {
+      return handle.classList.contains('os-form-block-drag');
+    }
+  }).on('drop', function (el) {
+    var blocks_order_data = {};
+    var $draggable_form_blocks_wrapper = jQuery('.os-draggable-form-blocks');
+    $draggable_form_blocks_wrapper.find('.os-form-block').each(function (index) {
+      var new_order_number = jQuery(this).index() + 1;
+      var $block_model_id = jQuery(this).find('.os-form-block-id');
+      if ($block_model_id.length && $block_model_id.val()) blocks_order_data[$block_model_id.val()] = new_order_number;
+    });
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: $draggable_form_blocks_wrapper.data('order-update-route'),
+      params: {
+        ordered_fields: blocks_order_data,
+        fields_for: $draggable_form_blocks_wrapper.data('fields-for')
+      },
+      return_format: 'json'
+    };
+    $draggable_form_blocks_wrapper.addClass('os-loading');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $draggable_form_blocks_wrapper.removeClass('os-loading');
+      }
+    });
+  });
+
+  // Steps Order Dragging
+  dragula([jQuery('.steps-ordering-w')[0]], {
+    moves: function moves(el, container, handle) {
+      return handle.classList.contains('step-drag');
+    }
+  }).on('drop', function (el) {
+    var step_order_data = {};
+    var $steps_wrapper = jQuery('.steps-ordering-w');
+    $steps_wrapper.find('.step-w').each(function (index) {
+      var new_order_number = jQuery(this).index() + 1;
+      jQuery(this).data('step-order-number', new_order_number);
+      jQuery(this).find('input[name="step[order_number]"]').val(new_order_number);
+      step_order_data[jQuery(this).data('step-name')] = new_order_number;
+    });
+    var data = {
+      action: latepoint_helper.route_action,
+      route_name: $steps_wrapper.data('step-order-update-route'),
+      params: {
+        steps: step_order_data
+      },
+      return_format: 'json'
+    };
+    $steps_wrapper.addClass('os-loading');
+    jQuery.ajax({
+      type: "post",
+      dataType: "json",
+      url: latepoint_helper.ajaxurl,
+      data: data,
+      success: function success(response) {
+        $steps_wrapper.removeClass('os-loading');
+      }
+    });
+  });
+  jQuery('body.latepoint-admin').on('click', '.os-category-edit-btn, .os-category-edit-cancel-btn, .os-category-w .os-category-name', function () {
+    jQuery(this).closest('.os-category-w').toggleClass('editing');
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.step-edit-btn, .step-edit-cancel-btn, .step-w .step-head', function () {
+    jQuery(this).closest('.step-w').toggleClass('editing');
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.agent-info-change-agent-btn', function () {
+    jQuery(this).closest('.agent-info-w').removeClass('selected').addClass('selecting');
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.agent-info-change-agent-btn', function () {
+    jQuery(this).closest('.agent-info-w').removeClass('selected').addClass('selecting');
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.customer-info-create-btn', function () {
+    jQuery(this).closest('.customer-info-w').removeClass('selecting').addClass('selected');
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.customer-info-load-btn', function () {
+    jQuery(this).closest('.customer-info-w').removeClass('selected').addClass('selecting').find('.customers-selector-search-input').focus();
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.customers-selector-cancel', function () {
+    jQuery(this).closest('.customer-info-w').removeClass('selecting').addClass('selected ');
+    jQuery('.customers-options-list .customer-option').show();
+    jQuery('.customers-selector-search-input').val('');
+    return false;
+  });
+
+  // CUSTOMER SELECTOR
+
+  // SERVICES SELECTOR
+  jQuery('body.latepoint-admin').on('click', '.os-services-select-field-w .service-option-selected', function () {
+    var $select = jQuery(this).closest('.os-services-select-field-w');
+    if ($select.hasClass('active')) {
+      $select.removeClass('active');
+    } else {
+      $select.addClass('active').find('input').focus();
+    }
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.os-services-select-field-w service-option-selected', function () {
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('keyup', '.service-options-filter-input', function () {
+    var $list = jQuery(this).closest('.services-options-list');
+    var text = jQuery(this).val().toLowerCase();
+    $list.find('.service-option').hide();
+
+    // Search 
+    $list.find('.service-option').each(function () {
+      if (jQuery(this).text().toLowerCase().indexOf("" + text + "") != -1) {
+        jQuery(this).show();
+      }
+    });
+    return false;
+  });
+  jQuery('.calendar-week-agent-w').on('click', '.calendar-load-target-date', function (event) {
+    jQuery(this).addClass('os-loading');
+    latepoint_reload_week_view_calendar(jQuery(this).data('target-date'));
+    return false;
+  });
+  jQuery('.calendar-week-agent-w').on('change', '.cc-availability-toggler #overlay_service_availability', function (event) {
+    if (jQuery(this).val() == 'on') {
+      jQuery('.calendar-week-agent-w .cc-service-selector').show();
+    } else {
+      jQuery('.calendar-week-agent-w .cc-service-selector').hide();
+    }
+    latepoint_reload_week_view_calendar();
+  });
+  jQuery('.calendar-week-agent-w').on('change', '.trigger-weekly-calendar-reload', function (event) {
+    latepoint_reload_week_view_calendar();
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.os-complex-connections-selector .selector-trigger', function () {
+    var $connection_wrapper = jQuery(this).closest('.connection');
+    if ($connection_wrapper.hasClass('active')) {
+      latepoint_complex_selector_deselect($connection_wrapper);
+      jQuery(this).closest('.white-box').find('.os-select-all-toggler').prop('checked', false);
+    } else {
+      latepoint_complex_selector_select($connection_wrapper);
+    }
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.os-agents-selector .agent', function () {
+    if (jQuery(this).hasClass('active')) {
+      jQuery(this).removeClass('active');
+      jQuery(this).find('.connection-child-is-connected').val('no');
+    } else {
+      jQuery(this).addClass('active');
+      jQuery(this).find('.connection-child-is-connected').val('yes');
+    }
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.os-services-selector .service', function () {
+    if (jQuery(this).hasClass('active')) {
+      jQuery(this).removeClass('active');
+      jQuery(this).find('.connection-child-is-connected').val('no');
+    } else {
+      jQuery(this).addClass('active');
+      jQuery(this).find('.connection-child-is-connected').val('yes');
+    }
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.os-form-toggler-group', function (event) {
+    jQuery(this).find('.os-toggler').trigger('click');
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.os-toggler', function (event) {
+    var $toggler = jQuery(this);
+    if ($toggler.data('confirm')) {
+      if (!confirm($toggler.data('confirm'))) return false;
+    }
+    if ($toggler.hasClass('on')) {
+      $toggler.removeClass('on').addClass('off');
+    } else {
+      $toggler.removeClass('off').addClass('on');
+    }
+    if ($toggler.data('for')) {
+      if ($toggler.hasClass('os-toggler-radio')) {
+        // radio
+        // uncheck all radio buttons with the same name
+        var $radio = jQuery('#' + $toggler.data('for'));
+        jQuery('input[type="radio"][name="' + $radio.prop('name') + '"]:checked').each(function (index) {
+          var toggle_content_id = jQuery(this).prop('checked', false).closest('.os-toggler-w').find('.os-toggler.on').removeClass('on').addClass('off').data('controlled-toggle-id');
+          jQuery('#' + toggle_content_id).hide();
+          console.log('unchecked');
+        });
+        $radio.prop('checked', !$toggler.hasClass('off'));
+      } else {
+        var $hiddenInput = jQuery('input[type="hidden"]#' + $toggler.data('for'));
+        if ($hiddenInput.length) {
+          // hidden input
+          if ($toggler.data('is-string-value')) {
+            $hiddenInput.val($toggler.hasClass('off') ? 'off' : 'on').trigger('change');
+          } else {
+            $hiddenInput.val($toggler.hasClass('off') ? 0 : 1).trigger('change');
+          }
+        } else {
+          // checkbox
+          jQuery('#' + $toggler.data('for')).prop('checked', !$toggler.hasClass('off'));
+        }
+      }
+    }
+    if ($toggler.data('controlled-toggle-id')) {
+      if ($toggler.hasClass('off')) {
+        jQuery('#' + $toggler.data('controlled-toggle-id')).hide();
+      } else {
+        jQuery('#' + $toggler.data('controlled-toggle-id')).show();
+      }
+    }
+    $toggler.trigger('ostoggler:toggle');
+    return false;
+  });
+
+  // UPLOAD/REMOVE IMAGE LINK LOGIC
+  jQuery('.latepoint-admin').on('click', '.os-image-selector-trigger', function (event) {
+    var frame;
+    event.preventDefault();
+    var $image_uploader_trigger = jQuery(this);
+    var $image_selector_w = jQuery(this).closest('.os-image-selector-w');
+    var $image_container = $image_selector_w.find('.os-image-container');
+    var $image_id_holder = $image_selector_w.find('.os-image-id-holder');
+    var image_exists = $image_container.find('img').length;
+    if (image_exists) {
+      $image_id_holder.val('');
+      $image_container.removeClass('has-image');
+      $image_container.html('');
+      $image_uploader_trigger.find('.os-text-holder').text($image_uploader_trigger.data('label-set-str'));
+    } else {
+      // If the media frame already exists, reopen it.
+      if (frame) {
+        frame.open();
+        return false;
+      }
+
+      // Create a new media frame
+      frame = wp.media({
+        title: 'Select or Upload Media',
+        button: {
+          text: 'Use this media'
+        },
+        multiple: false
+      });
+      frame.on('select', function () {
+        var attachment = frame.state().get('selection').first().toJSON();
+        $image_container.append('<img src="' + attachment.url + '" alt=""/>');
+        $image_id_holder.val(attachment.id);
+        $image_container.addClass('has-image');
+        $image_uploader_trigger.find('.os-text-holder').text($image_uploader_trigger.data('label-remove-str'));
+      });
+      frame.open();
+    }
+    return false;
+  });
+  jQuery('body').on('click', '.latepoint-lightbox-close', function () {
+    latepoint_lightbox_close();
+    return false;
+  });
+  jQuery('body').on('click', '.latepoint-side-panel-close-trigger', function () {
+    jQuery('.latepoint-side-panel-w').remove();
+    return false;
+  });
+  jQuery('body').on('click', '.latepoint-quick-availability-close', function () {
+    jQuery('.quick-availability-per-day-w').remove();
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.time-ampm-select', function () {
+    jQuery(this).closest('.time-ampm-w').find('.active').removeClass('active');
+    jQuery(this).addClass('active');
+    var ampm_value = jQuery(this).data('ampm-value');
+    jQuery(this).closest('.os-time-group').find('.ampm-value-hidden-holder').val(ampm_value);
+    if (jQuery(this).closest('.quick-start-time-w').length) {
+      // if called from quick edit form - we need to make sure it accurately changes time to next day if end time is earlier than start time
+      latepoint_set_booking_end_time();
+      latepoint_is_next_day();
+    }
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.latepoint-lightbox-shadow', function () {
+    latepoint_lightbox_close();
+    return false;
+  });
+  jQuery('body.latepoint-admin').on('click', '.latepoint-side-panel-shadow', function () {
+    jQuery('.latepoint-side-panel-w').remove();
+    return false;
+  });
+
+  // SCHEDULE
+
+  jQuery('body.latepoint-admin').on('click', '.ws-period-remove', function (e) {
+    jQuery(this).closest('.ws-period').remove();
+    return false;
+  });
+  jQuery('.latepoint-admin').on('click', '.weekday-schedule-w .os-toggler', function (event) {
+    if (jQuery(this).hasClass('off')) {
+      jQuery(this).closest('.weekday-schedule-w').addClass('day-off').removeClass('is-editing').find('input.is-active').val(0);
+    } else {
+      jQuery(this).closest('.weekday-schedule-w').removeClass('day-off').addClass('is-editing').find('input.is-active').val(1);
+    }
+    return false;
+  });
+});
+
+//# sourceMappingURL=admin.js.map
